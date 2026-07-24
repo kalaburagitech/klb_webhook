@@ -24,6 +24,7 @@ export default defineSchema({
   posts: defineTable({
     title: v.optional(v.string()),
     content: v.string(),
+    mediaUrl: v.optional(v.string()),
     mediaIds: v.optional(v.array(v.id("media"))),
     platforms: v.array(v.string()), // ["facebook", "instagram"]
     authorId: v.optional(v.id("users")),
