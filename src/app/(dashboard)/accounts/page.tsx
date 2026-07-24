@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Facebook, Instagram, MoreVertical, RefreshCw } from "lucide-react";
+import { Plus, Globe, Camera, MoreVertical, RefreshCw } from "lucide-react";
 
 export default function AccountsPage() {
   // Placeholder for accounts. In reality, fetch from Convex `socialAccounts` table.
@@ -27,7 +27,7 @@ export default function AccountsPage() {
           <div key={acc.id} className="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 backdrop-blur-sm transition-all duration-300 hover:border-gray-700 hover:shadow-xl group">
             <div className="flex justify-between items-start mb-6">
               <div className={`p-3 rounded-xl ${acc.platform === 'facebook' ? 'bg-blue-500/20 text-blue-400' : 'bg-pink-500/20 text-pink-400'}`}>
-                {acc.platform === 'facebook' ? <Facebook className="w-6 h-6" /> : <Instagram className="w-6 h-6" />}
+                {acc.platform === 'facebook' ? <Globe className="w-6 h-6" /> : <Camera className="w-6 h-6" />}
               </div>
               <button className="text-gray-500 hover:text-gray-300 transition-colors">
                 <MoreVertical className="w-5 h-5" />
