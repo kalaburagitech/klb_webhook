@@ -43,7 +43,7 @@ export default function PostsPage() {
               <button className="text-blue-400 hover:text-blue-300 text-sm font-medium">Create a new post</button>
             </div>
           ) : (
-            posts.map((post) => (
+            posts.map((post: any) => (
               <div key={post._id} className="p-6 hover:bg-gray-800/20 transition-colors flex flex-col sm:flex-row gap-6 items-start">
                 <div className="w-full sm:w-32 h-32 bg-gray-800 rounded-xl flex-shrink-0 flex items-center justify-center border border-gray-700/50 overflow-hidden">
                   <ImageIcon className="w-8 h-8 text-gray-600" />
@@ -52,7 +52,7 @@ export default function PostsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex gap-2">
-                      {post.platforms.map((p, i) => (
+                      {post.platforms.map((p: any, i: number) => (
                         <span key={i} className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                           p === 'facebook' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-pink-500/10 text-pink-400 border border-pink-500/20'
                         }`}>

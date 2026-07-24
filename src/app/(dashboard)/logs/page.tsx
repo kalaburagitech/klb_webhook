@@ -41,7 +41,7 @@ export default function WebhookLogsPage() {
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                logs.map((log: any) => (
                   <tr key={log._id} className="hover:bg-gray-800/30 transition-colors">
                     <td className="px-6 py-4">
                       {log.status === 'received' ? (

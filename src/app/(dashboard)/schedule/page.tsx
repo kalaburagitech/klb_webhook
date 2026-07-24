@@ -28,7 +28,7 @@ export default function SchedulePage() {
         ) : (
           <div className="space-y-6">
             <div className="relative border-l border-gray-800 ml-3 pl-8 py-2 space-y-12">
-              {scheduledPosts.map((post) => (
+              {scheduledPosts.map((post: any) => (
                 <div key={post._id} className="relative">
                   <div className="absolute -left-10 top-1 w-4 h-4 rounded-full border-4 border-gray-900 bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
                   <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -39,7 +39,7 @@ export default function SchedulePage() {
                     <div className="flex-1 bg-gray-800/30 border border-gray-700/50 rounded-xl p-4 hover:bg-gray-800/50 transition-colors cursor-pointer">
                       <p className="text-gray-300 text-sm line-clamp-2">{post.content}</p>
                       <div className="mt-3 flex gap-2">
-                        {post.platforms.map((p, i) => (
+                        {post.platforms.map((p: any, i: number) => (
                           <span key={i} className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
                             {p}
                           </span>
