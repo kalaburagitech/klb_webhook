@@ -53,11 +53,13 @@ export const createPost = mutation({
     content: v.string(),
     platforms: v.array(v.string()),
     scheduledTime: v.optional(v.number()),
+    mediaUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const postId = await ctx.db.insert("posts", {
       content: args.content,
       platforms: args.platforms,
+      mediaUrl: args.mediaUrl,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       status: args.scheduledTime ? "scheduled" : "draft",
@@ -84,6 +86,7 @@ export const updatePost = mutation({
     content: v.optional(v.string()),
     platforms: v.optional(v.array(v.string())),
     status: v.optional(v.string()),
+    mediaUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

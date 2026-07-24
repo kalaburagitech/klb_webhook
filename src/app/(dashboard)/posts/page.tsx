@@ -37,11 +37,12 @@ export default function PostsPage() {
       // 1. Save to database
       let postId = editingPostId;
       if (editingPostId) {
-        await updatePost({ id: editingPostId, content, platforms });
+        await updatePost({ id: editingPostId, content, platforms, mediaUrl: imageUrl || undefined });
       } else {
         postId = await createPost({
           content,
           platforms,
+          mediaUrl: imageUrl || undefined,
         });
       }
 
@@ -78,7 +79,7 @@ export default function PostsPage() {
     setEditingPostId(post._id);
     setContent(post.content);
     setPlatforms(post.platforms);
-    setImageUrl("");
+    setImageUrl(post.mediaUrl || "");
     setIsModalOpen(true);
   };
 
@@ -89,6 +90,8 @@ export default function PostsPage() {
           await publishPost({
             platform,
             content: post.content,
+            mediaUrl: post.mediaUrl || undefined,
+            mediaType: post.mediaUrl ? "image" : undefined,
           });
         }
         await updatePost({ id: post._id, status: "published" });
