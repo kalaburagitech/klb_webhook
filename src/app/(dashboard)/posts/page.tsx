@@ -3,14 +3,17 @@
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 
-import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal, AlertTriangle, X, Loader2 } from "lucide-react";
+import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal, AlertTriangle, X, Loader2, Trash2, Edit2 } from "lucide-react";
 
 export default function PostsPage() {
   const posts = useQuery("queries:listDashboardPosts" as any);
   const createPost = useMutation("mutations:createPost" as any);
+  const updatePost = useMutation("mutations:updatePost" as any);
+  const deletePost = useMutation("mutations:deletePost" as any);
   const publishPost = useAction("metaApi:publishPost" as any);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["instagram"]);
@@ -32,10 +35,15 @@ export default function PostsPage() {
 
     try {
       // 1. Save to database
-      await createPost({
-        content,
-        platforms,
-      });
+      let postId = editingPostId;
+      if (editingPostId) {
+        await updatePost({ id: editingPostId, content, platforms });
+      } else {
+        postId = await createPost({
+          content,
+          platforms,
+        });
+      }
 
       // 2. Publish to Meta
       for (const platform of platforms) {
@@ -47,14 +55,47 @@ export default function PostsPage() {
         });
       }
 
+      if (postId) {
+        await updatePost({ id: postId, status: "published" });
+      }
+
       setIsModalOpen(false);
       setContent("");
       setImageUrl("");
+      setEditingPostId(null);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to publish post");
+      if (editingPostId) {
+        await updatePost({ id: editingPostId, status: "failed" });
+      }
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handleEdit = (post: any) => {
+    setEditingPostId(post._id);
+    setContent(post.content);
+    setPlatforms(post.platforms);
+    setImageUrl("");
+    setIsModalOpen(true);
+  };
+
+  const handleQuickPublish = async (post: any) => {
+    if (confirm("Publish this post immediately?")) {
+      try {
+        for (const platform of post.platforms) {
+          await publishPost({
+            platform,
+            content: post.content,
+          });
+        }
+        await updatePost({ id: post._id, status: "published" });
+      } catch (err: any) {
+        alert(err.message || "Failed to publish");
+        await updatePost({ id: post._id, status: "failed" });
+      }
     }
   };
 
@@ -114,9 +155,20 @@ export default function PostsPage() {
                         </span>
                       ))}
                     </div>
-                    <button className="text-gray-500 hover:text-gray-300">
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleQuickPublish(post)} className="p-1.5 bg-gray-800 text-emerald-400 rounded-md hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors" title="Publish Now">
+                        <Send className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => alert("Scheduling UI coming soon!")} className="p-1.5 bg-gray-800 text-purple-400 rounded-md hover:bg-purple-500/20 hover:text-purple-300 transition-colors" title="Schedule">
+                        <Clock className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleEdit(post)} className="p-1.5 bg-gray-800 text-blue-400 rounded-md hover:bg-blue-500/20 hover:text-blue-300 transition-colors" title="Edit">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => { if(confirm("Delete this post?")) deletePost({ id: post._id }) }} className="p-1.5 bg-gray-800 text-red-400 rounded-md hover:bg-red-500/20 hover:text-red-300 transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-gray-300 text-sm line-clamp-2 mb-4 leading-relaxed">
                     {post.content}
@@ -150,8 +202,8 @@ export default function PostsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-6 border-b border-gray-800">
-              <h2 className="text-xl font-semibold text-white">Create New Post</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
+              <h2 className="text-xl font-semibold text-white">{editingPostId ? "Edit Post" : "Create New Post"}</h2>
+              <button onClick={() => { setIsModalOpen(false); setEditingPostId(null); setContent(""); setImageUrl(""); }} className="text-gray-400 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -217,7 +269,7 @@ export default function PostsPage() {
 
             <div className="p-6 border-t border-gray-800 bg-gray-900/50 flex justify-end gap-3">
               <button 
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => { setIsModalOpen(false); setEditingPostId(null); setContent(""); setImageUrl(""); }}
                 className="px-5 py-2.5 text-gray-300 hover:text-white font-medium transition-colors"
                 disabled={isPublishing}
               >

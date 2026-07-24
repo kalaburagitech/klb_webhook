@@ -77,3 +77,26 @@ export const createPost = mutation({
     return postId;
   },
 });
+
+export const updatePost = mutation({
+  args: {
+    id: v.id("posts"),
+    content: v.optional(v.string()),
+    platforms: v.optional(v.array(v.string())),
+    status: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+    await ctx.db.patch(id, {
+      ...updates,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const deletePost = mutation({
+  args: { id: v.id("posts") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
