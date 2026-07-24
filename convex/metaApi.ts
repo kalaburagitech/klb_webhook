@@ -23,6 +23,10 @@ async function graphApiRequest(endpoint: string, method: string, body?: any, tok
   const accessToken = token || process.env.META_ACCESS_TOKEN;
   const appSecret = process.env.META_APP_SECRET;
 
+  if (!appSecret) {
+    throw new Error("META_APP_SECRET is not configured in Convex Environment Variables. You must set it in the Convex Dashboard to generate the appsecret_proof.");
+  }
+
   if (accessToken && appSecret) {
     const proof = await generateAppSecretProof(accessToken, appSecret);
     url += (url.includes("?") ? "&" : "?") + `appsecret_proof=${proof}`;
