@@ -50,12 +50,20 @@ async function graphApiRequest(endpoint: string, method: string, body?: any, tok
 
   const response = await fetch(url, options);
   const data = await response.json();
-  
+
   if (!response.ok) {
     console.error("Meta API Error:", data);
-    throw new Error(data.error?.message || "Unknown error from Meta API");
+    const err = data.error;
+    // code 190 = access token expired / invalid. Surface a clear, actionable message.
+    if (err?.code === 190) {
+      throw new Error(
+        "Meta access token is expired or invalid. Regenerate it in the Graph API Explorer and update it with `npx convex env set META_ACCESS_TOKEN <new_token>`. " +
+        (err.message || "")
+      );
+    }
+    throw new Error(err?.message || "Unknown error from Meta API");
   }
-  
+
   return data;
 }
 
@@ -110,6 +118,31 @@ export const publishPost = action({
       // Step 1: Create Container
       const containerResponse = await graphApiRequest(`${igId}/media`, "POST", containerPayload);
       const creationId = containerResponse.id;
+
+      // Step 1b: Wait for Meta to finish processing the container before publishing.
+      // Publishing too early fails with "Media ID is not available". Poll status_code
+      // until FINISHED (images are usually quick; videos/reels take longer).
+      const maxAttempts = 30; // ~60s max
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const statusResp = await graphApiRequest(
+          `${creationId}?fields=status_code,status`,
+          "GET"
+        );
+        const code = statusResp.status_code;
+        if (code === "FINISHED") break;
+        if (code === "ERROR" || code === "EXPIRED") {
+          throw new Error(
+            `Instagram media processing failed (status: ${code}). ${statusResp.status || ""}`
+          );
+        }
+        if (attempt === maxAttempts - 1) {
+          throw new Error(
+            "Instagram media is still processing after 60s. Try again, or use a smaller/standard image."
+          );
+        }
+        // wait 2s before checking again
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
 
       // Step 2: Publish Container
       const publishResponse = await graphApiRequest(`${igId}/media_publish`, "POST", {
