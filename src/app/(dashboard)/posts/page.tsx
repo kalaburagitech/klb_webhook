@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 
-import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal } from "lucide-react";
+import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal, AlertTriangle } from "lucide-react";
 
 export default function PostsPage() {
   const posts = useQuery("queries:listDashboardPosts" as any);
