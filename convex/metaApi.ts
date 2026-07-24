@@ -1,10 +1,32 @@
 import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
+// Generate appsecret_proof using Web Crypto (HMAC-SHA256)
+async function generateAppSecretProof(accessToken: string, appSecret: string) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(appSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, enc.encode(accessToken));
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 // Helper to make graph API requests
 async function graphApiRequest(endpoint: string, method: string, body?: any, token?: string) {
-  const url = `https://graph.facebook.com/v25.0/${endpoint}`;
+  let url = `https://graph.facebook.com/v25.0/${endpoint}`;
   const accessToken = token || process.env.META_ACCESS_TOKEN;
+  const appSecret = process.env.META_APP_SECRET;
+
+  if (accessToken && appSecret) {
+    const proof = await generateAppSecretProof(accessToken, appSecret);
+    url += (url.includes("?") ? "&" : "?") + `appsecret_proof=${proof}`;
+  }
   
   const options: RequestInit = {
     method,
