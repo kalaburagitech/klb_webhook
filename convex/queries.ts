@@ -25,6 +25,28 @@ export const getDuePosts = internalQuery({
   },
 });
 
+export const getScheduledPosts = query({
+  args: {},
+  handler: async (ctx) => {
+    const posts = await ctx.db
+      .query("scheduledPosts")
+      .withIndex("by_status_and_time", (q) => 
+        q.eq("status", "pending")
+      )
+      .collect();
+
+    // Join with posts table to get content
+    const fullPosts = await Promise.all(
+      posts.map(async (sp) => {
+        const post = await ctx.db.get(sp.postId);
+        return { ...sp, content: post?.content || "" };
+      })
+    );
+    
+    return fullPosts;
+  },
+});
+
 export const listDashboardPosts = query({
   args: {},
   handler: async (ctx) => {

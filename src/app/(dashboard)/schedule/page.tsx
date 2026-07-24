@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { Clock, Calendar as CalendarIcon, CheckCircle2, XCircle } from "lucide-react";
 
 export default function SchedulePage() {
-  const scheduledPosts = useQuery("queries:getDuePosts" as any);
+  const scheduledPosts = useQuery("queries:getScheduledPosts" as any);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
