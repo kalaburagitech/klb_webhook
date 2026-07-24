@@ -29,7 +29,11 @@ async function graphApiRequest(endpoint: string, method: string, body?: any, tok
 
   if (accessToken && appSecret) {
     const proof = await generateAppSecretProof(accessToken, appSecret);
-    url += (url.includes("?") ? "&" : "?") + `appsecret_proof=${proof}`;
+    if (method === "POST" && body) {
+      body.appsecret_proof = proof;
+    } else {
+      url += (url.includes("?") ? "&" : "?") + `appsecret_proof=${proof}`;
+    }
   }
   
   const options: RequestInit = {
