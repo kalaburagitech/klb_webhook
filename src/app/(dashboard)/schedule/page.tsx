@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+
 import { Clock, Calendar as CalendarIcon, CheckCircle2, XCircle } from "lucide-react";
 
 export default function SchedulePage() {
-  const scheduledPosts = useQuery(api.queries.getDuePosts); // Assuming this returns all pending ones or we need a query for all scheduled
+  const scheduledPosts = useQuery("queries:getDuePosts" as any);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">

@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+
 import { Terminal, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function WebhookLogsPage() {
-  const logs = useQuery(api.queries.listWebhookLogs);
+  const logs = useQuery("queries:listWebhookLogs" as any);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">

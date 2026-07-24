@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+
 import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal } from "lucide-react";
 
 export default function PostsPage() {
-  const posts = useQuery(api.queries.listDashboardPosts);
+  const posts = useQuery("queries:listDashboardPosts" as any);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">

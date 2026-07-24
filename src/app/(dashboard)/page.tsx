@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+
 import { BarChart3, Clock, AlertTriangle, MessageSquare } from "lucide-react";
 
 export default function Dashboard() {
-  const stats = useQuery(api.queries.getDashboardStats);
+  const stats = useQuery("queries:getDashboardStats" as any);
 
   const statCards = [
     {

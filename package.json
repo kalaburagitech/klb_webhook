@@ -4,11 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx convex codegen && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@next/swc-wasm-nodejs": "^16.2.11",
+    "@next/swc-wasm-web": "^16.2.11",
+    "@next/swc-win32-x64-msvc": "^16.2.11",
     "convex": "^1.42.3",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.26.0",
