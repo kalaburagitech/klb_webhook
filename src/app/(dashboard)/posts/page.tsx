@@ -1,10 +1,62 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useState } from "react";
+import { useQuery, useMutation, useAction } from "convex/react";
 
-import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal, AlertTriangle } from "lucide-react";
+import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal, AlertTriangle, X, Loader2 } from "lucide-react";
 
 export default function PostsPage() {
+  const posts = useQuery("queries:listDashboardPosts" as any);
+  const createPost = useMutation("mutations:createPost" as any);
+  const publishPost = useAction("metaApi:publishPost" as any);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [platforms, setPlatforms] = useState<string[]>(["instagram"]);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleCreateAndPublish = async () => {
+    if (!content) {
+      setError("Content is required");
+      return;
+    }
+    if (platforms.includes("instagram") && !imageUrl) {
+      setError("Instagram requires an image URL");
+      return;
+    }
+
+    setIsPublishing(true);
+    setError("");
+
+    try {
+      // 1. Save to database
+      await createPost({
+        content,
+        platforms,
+      });
+
+      // 2. Publish to Meta
+      for (const platform of platforms) {
+        await publishPost({
+          platform,
+          content,
+          mediaUrl: imageUrl || undefined,
+          mediaType: imageUrl ? "image" : undefined,
+        });
+      }
+
+      setIsModalOpen(false);
+      setContent("");
+      setImageUrl("");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to publish post");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
   const posts = useQuery("queries:listDashboardPosts" as any);
 
   return (
@@ -14,7 +66,10 @@ export default function PostsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Content Library</h1>
           <p className="text-gray-400">Create, manage, and view your posts.</p>
         </div>
-        <button className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all duration-300 hover:scale-[1.02]">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all duration-300 hover:scale-[1.02]"
+        >
           <Plus className="w-5 h-5 mr-2" />
           Create Post
         </button>
@@ -90,6 +145,100 @@ export default function PostsPage() {
           )}
         </div>
       </div>
+
+      {/* Create Post Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-gray-800">
+              <h2 className="text-xl font-semibold text-white">Create New Post</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">Platforms</label>
+                <div className="flex gap-3">
+                  {['facebook', 'instagram'].map(p => (
+                    <label key={p} className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={platforms.includes(p)}
+                        onChange={(e) => {
+                          if (e.target.checked) setPlatforms([...platforms, p]);
+                          else setPlatforms(platforms.filter(x => x !== p));
+                        }}
+                        className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+                      />
+                      <span className="capitalize text-gray-300">{p}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">Content</label>
+                <textarea 
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="What's on your mind?"
+                  className="w-full h-32 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">Image URL (Required for Instagram)</label>
+                <div className="flex items-center bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/50">
+                  <div className="pl-4 text-gray-400"><ImageIcon className="w-5 h-5" /></div>
+                  <input 
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    className="w-full bg-transparent border-none p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0"
+                  />
+                </div>
+                {imageUrl && (
+                  <div className="mt-4 rounded-xl overflow-hidden border border-gray-700/50 bg-gray-800 relative h-48">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-800 bg-gray-900/50 flex justify-end gap-3">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="px-5 py-2.5 text-gray-300 hover:text-white font-medium transition-colors"
+                disabled={isPublishing}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleCreateAndPublish}
+                disabled={isPublishing || !content}
+                className="flex items-center px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPublishing ? (
+                  <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Publishing...</>
+                ) : (
+                  <><Send className="w-4 h-4 mr-2" /> Publish Now</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
