@@ -12,6 +12,22 @@ crons.interval(
   internal.crons.processScheduledPosts
 );
 
+// Gemini-powered daily auto-poster (times in IST; Convex crons run in UTC).
+// 8:00 AM IST = 02:30 UTC
+crons.cron(
+  "auto-post-morning",
+  "30 2 * * *",
+  internal.autoPost.runAutoPost,
+  { slot: "morning" }
+);
+// 8:00 PM IST = 14:30 UTC
+crons.cron(
+  "auto-post-night",
+  "30 14 * * *",
+  internal.autoPost.runAutoPost,
+  { slot: "night" }
+);
+
 export const processScheduledPosts = internalAction({
   args: {},
   handler: async (ctx) => {

@@ -12,12 +12,14 @@ import {
   AlertTriangle,
   Settings,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Accounts", href: "/accounts", icon: Users },
   { name: "Posts", href: "/posts", icon: MessageSquare },
+  { name: "Auto-Post (AI)", href: "/auto-post", icon: Sparkles },
   { name: "Schedule", href: "/schedule", icon: CalendarDays },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Webhook Logs", href: "/logs", icon: Terminal },

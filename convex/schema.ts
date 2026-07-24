@@ -108,4 +108,24 @@ export default defineSchema({
     updatedAt: v.number(),
     status: v.string(), // "valid", "expired"
   }),
+
+  // Singleton config for the Gemini-powered daily auto-poster.
+  autoPostConfig: defineTable({
+    enabled: v.boolean(),
+    theme: v.string(), // what Gemini writes about, e.g. "Daily tech tips"
+    platforms: v.array(v.string()), // ["facebook", "instagram"]
+    rotationIndex: v.number(), // next image in the pool to use
+    lastRunSlot: v.optional(v.string()), // "morning" | "night" — last slot that ran
+    lastRunAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }),
+
+  // Pool of images the auto-poster rotates through.
+  autoPostImages: defineTable({
+    storageId: v.id("_storage"),
+    url: v.string(),
+    createdAt: v.number(),
+  }),
 });
