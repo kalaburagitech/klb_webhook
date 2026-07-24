@@ -3,13 +3,15 @@
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 
-import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal, AlertTriangle, X, Loader2, Trash2, Edit2 } from "lucide-react";
+import { Plus, Image as ImageIcon, Send, Clock, CalendarDays, MoreHorizontal, AlertTriangle, X, Loader2, Trash2, Edit2, UploadCloud } from "lucide-react";
 
 export default function PostsPage() {
   const posts = useQuery("queries:listDashboardPosts" as any);
   const createPost = useMutation("mutations:createPost" as any);
   const updatePost = useMutation("mutations:updatePost" as any);
   const deletePost = useMutation("mutations:deletePost" as any);
+  const generateUploadUrl = useMutation("mutations:generateUploadUrl" as any);
+  const getUploadUrl = useMutation("mutations:getUploadUrl" as any);
   const publishPost = useAction("metaApi:publishPost" as any);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,6 +20,7 @@ export default function PostsPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["instagram"]);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
 
   const handleCreateAndPublish = async () => {
@@ -72,6 +75,32 @@ export default function PostsPage() {
       }
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      setError("");
+      
+      const postUrl = await generateUploadUrl();
+      const result = await fetch(postUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      const { storageId } = await result.json();
+      
+      const url = await getUploadUrl({ storageId });
+      setImageUrl(url);
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to upload image");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -251,16 +280,32 @@ export default function PostsPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">Image URL (Required for Instagram)</label>
-                <div className="flex items-center bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/50">
-                  <div className="pl-4 text-gray-400"><ImageIcon className="w-5 h-5" /></div>
-                  <input 
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                    className="w-full bg-transparent border-none p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0"
-                  />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 flex items-center bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/50">
+                    <div className="pl-4 text-gray-400"><ImageIcon className="w-5 h-5" /></div>
+                    <input 
+                      type="url"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                      className="w-full bg-transparent border-none p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0"
+                    />
+                  </div>
+                  
+                  <div className="relative flex-shrink-0">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload}
+                      disabled={isUploading}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <button type="button" disabled={isUploading} className="w-full h-full min-h-[56px] flex items-center justify-center px-6 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors disabled:opacity-50">
+                      {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><UploadCloud className="w-5 h-5 mr-2" /> Upload</>}
+                    </button>
+                  </div>
                 </div>
+
                 {imageUrl && (
                   <div className="mt-4 rounded-xl overflow-hidden border border-gray-700/50 bg-gray-800 relative h-48">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
