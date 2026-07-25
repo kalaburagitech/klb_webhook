@@ -30,7 +30,6 @@ export default function AutoPostPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [preview, setPreview] = useState("");
-  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isTriggering, setIsTriggering] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [error, setError] = useState("");
@@ -63,20 +62,6 @@ export default function AutoPostPage() {
       setError(e.message || "Failed to save settings");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handlePreview = async () => {
-    setIsPreviewing(true);
-    setPreview("");
-    setError("");
-    try {
-      const text = await previewCaption({ theme });
-      setPreview(text);
-    } catch (e: any) {
-      setError(e.message || "Failed to generate preview");
-    } finally {
-      setIsPreviewing(false);
     }
   };
 
@@ -208,9 +193,14 @@ export default function AutoPostPage() {
         </div>
       )}
 
-      {/* Content settings */}
+      {/* Combined Content & Preview Section */}
       <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 backdrop-blur-sm space-y-5">
-        <h2 className="text-lg font-medium text-white">Content settings</h2>
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-lg font-medium text-white">Content & Image Settings</h2>
+            <p className="text-sm text-gray-400">Set your theme and generate previews. The cron job will automatically use these settings.</p>
+          </div>
+        </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-300">Topic / theme</label>
@@ -248,85 +238,71 @@ export default function AutoPostPage() {
             {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
             Save settings
           </button>
+          
           <button
-            onClick={handlePreview}
-            disabled={isPreviewing || !theme}
-            className="flex items-center px-5 py-2.5 bg-purple-600/80 hover:bg-purple-500 text-white font-medium rounded-xl transition-all disabled:opacity-50"
+            onClick={handleGenerateImage}
+            disabled={isGeneratingImage || !theme}
+            className="flex items-center px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-xl transition-all disabled:opacity-50"
           >
-            {isPreviewing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-            Preview a caption
+            {isGeneratingImage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+            Generate Caption & Image Preview
           </button>
+
+          <div className="relative">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleUpload}
+              disabled={isUploading}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+            />
+            <button
+              type="button"
+              disabled={isUploading}
+              className="flex h-full items-center px-5 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+              Manual Upload
+            </button>
+          </div>
         </div>
 
         {preview && (
-          <div className="mt-2 p-4 bg-gray-800/50 border border-gray-700 rounded-xl text-gray-200 text-sm whitespace-pre-wrap">
+          <div className="mt-4 p-4 bg-gray-800/50 border border-gray-700 rounded-xl text-gray-200 text-sm whitespace-pre-wrap">
+            <span className="text-gray-400 font-medium mb-2 block">Generated Caption:</span>
             {preview}
           </div>
         )}
-      </div>
 
-      {/* Image pool */}
-      <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 backdrop-blur-sm space-y-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-lg font-medium text-white">Image pool</h2>
-            <p className="text-sm text-gray-400">Each post rotates to the next image. Instagram requires an image.</p>
-          </div>
-          <div className="relative flex gap-3">
-            <button
-              type="button"
-              onClick={handleGenerateImage}
-              disabled={isGeneratingImage}
-              className="flex items-center px-5 py-2.5 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-600/30 font-medium rounded-xl transition-all disabled:opacity-50"
-            >
-              {isGeneratingImage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              Generate AI Image
-            </button>
-            <div className="relative">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleUpload}
-                disabled={isUploading}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-              />
-              <button
-                type="button"
-                disabled={isUploading}
-                className="flex h-full items-center px-5 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-xl transition-colors disabled:opacity-50"
-              >
-                {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-                Upload images
-              </button>
+        {/* Image Pool Grid */}
+        <div className="pt-4 border-t border-gray-800 mt-6">
+          <h3 className="text-sm font-medium text-gray-300 mb-4">Current Image Pool</h3>
+          {images === undefined ? (
+            <div className="text-gray-500 text-sm py-6 text-center">Loading...</div>
+          ) : images.length === 0 ? (
+            <div className="py-6 text-center flex flex-col items-center text-gray-500 bg-gray-900/50 rounded-xl border border-dashed border-gray-700/50">
+              <ImageIcon className="w-8 h-8 mb-2 text-gray-600" />
+              <span className="text-sm">No images in pool. The auto-poster will generate them dynamically!</span>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {images.map((img: any) => (
+                <div key={img._id} className="relative group rounded-xl overflow-hidden border border-gray-700/50 bg-gray-800 aspect-square shadow-sm hover:border-gray-500 transition-colors">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt="pool" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => removeImage({ id: img._id })}
+                    className="absolute top-2 right-2 p-1.5 bg-black/70 text-red-400 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                    title="Remove"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-
-        {images === undefined ? (
-          <div className="text-gray-500 text-sm py-6 text-center">Loading...</div>
-        ) : images.length === 0 ? (
-          <div className="py-10 text-center flex flex-col items-center text-gray-500">
-            <ImageIcon className="w-10 h-10 mb-3 text-gray-600" />
-            No images yet. Upload a few so the auto-poster has pictures to use.
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {images.map((img: any) => (
-              <div key={img._id} className="relative group rounded-xl overflow-hidden border border-gray-700/50 bg-gray-800 aspect-square">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.url} alt="pool" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => removeImage({ id: img._id })}
-                  className="absolute top-2 right-2 p-1.5 bg-black/60 text-red-400 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/30 hover:text-red-300"
-                  title="Remove"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
