@@ -183,26 +183,46 @@ export const runAutoPost = internalAction({
       console.log(`Auto-post (${args.slot}) skipped: not enabled.`);
       return;
     }
-    if (images.length === 0) {
-      await ctx.runMutation(internal.autoPost.recordError, {
-        error: "No images in the pool — upload at least one image to auto-post.",
-        slot: args.slot,
-      });
-      console.log(`Auto-post (${args.slot}) skipped: image pool empty.`);
-      return;
-    }
 
     try {
-      // Pick the next image in rotation.
-      const index = config.rotationIndex % images.length;
-      const image = images[index];
-      const nextRotation = (index + 1) % images.length;
-
-      // Generate the caption with Gemini.
+      // Generate the caption with Gemini first
       const caption: string = await ctx.runAction(
         internal.gemini.generateCaption,
         { theme: config.theme }
       );
+
+      let mediaUrl = "";
+      let nextRotation = config.rotationIndex;
+
+      if (images.length === 0) {
+        // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
+        const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
+        const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true`;
+        
+        const imageRes = await fetch(generatedImageUrl);
+        if (!imageRes.ok) throw new Error("Failed to generate on-the-fly image from Pollinations");
+        
+        const blob = await imageRes.blob();
+        const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
+        
+        const uploadRes = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": "image/jpeg" },
+          body: blob,
+        });
+        const { storageId } = await uploadRes.json();
+        
+        // Get public URL using existing getUploadUrl mutation
+        const publicUrl = await ctx.runMutation(api.mutations.getUploadUrl, { storageId });
+        if (!publicUrl) throw new Error("Failed to resolve generated image URL");
+        
+        mediaUrl = publicUrl;
+      } else {
+        // Use existing pool
+        const index = config.rotationIndex % images.length;
+        mediaUrl = images[index].url;
+        nextRotation = (index + 1) % images.length;
+      }
 
       // Publish to each configured platform.
       const errors: string[] = [];
@@ -213,7 +233,7 @@ export const runAutoPost = internalAction({
           await ctx.runAction(api.metaApi.publishPost, {
             platform,
             content: caption,
-            mediaUrl: image.url,
+            mediaUrl: mediaUrl,
             mediaType: "image",
           });
           successCount++;
@@ -229,7 +249,7 @@ export const runAutoPost = internalAction({
 
       await ctx.runMutation(internal.autoPost.finalizeSuccess, {
         caption,
-        mediaUrl: image.url,
+        mediaUrl: mediaUrl,
         platforms: config.platforms,
         nextRotation,
         slot: args.slot,

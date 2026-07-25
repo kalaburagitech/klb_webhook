@@ -191,8 +191,8 @@ export default function AutoPostPage() {
       </div>
 
       {enabled && (images?.length ?? 0) === 0 && (
-        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-400 text-sm flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4" /> Auto-post is ON but your image pool is empty — add at least one image below or nothing will post.
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm flex items-center gap-2">
+          <Sparkles className="w-4 h-4" /> Auto-post is ON. Since your image pool is empty, unique images will be generated dynamically using AI for every post!
         </div>
       )}
 
