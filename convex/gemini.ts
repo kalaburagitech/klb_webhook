@@ -78,6 +78,7 @@ async function generateImagePromptWithGemini(theme: string): Promise<string> {
     `Topic/theme: "${theme}". ` +
     `Write ONE highly detailed, visual description of an image that represents this theme. ` +
     `Include lighting, style (e.g. 3D render, sleek, modern), colors, and composition. ` +
+    `IMPORTANT: DO NOT include any text, typography, letters, or words in the image description. The image must be purely visual/illustrative without any written text. ` +
     `Keep it under 40 words. ` +
     `Return ONLY the description text, no preamble, no quotes, no markdown.`;
 

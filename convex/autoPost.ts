@@ -45,7 +45,8 @@ export const generateAndSaveImage = action({
     // Use the highly-detailed caption to generate the image
     const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
     
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true`;
+    const seed = Math.floor(Math.random() * 1000000);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
     const imageRes = await fetch(imageUrl);
     if (!imageRes.ok) throw new Error("Failed to generate image");
     
@@ -203,7 +204,9 @@ export const runAutoPost = internalAction({
       if (images.length === 0) {
         // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
         const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
-        const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true`;
+        
+        const seed = Math.floor(Math.random() * 1000000);
+        const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
         
         const imageRes = await fetch(generatedImageUrl);
         if (!imageRes.ok) throw new Error("Failed to generate on-the-fly image from Pollinations");
