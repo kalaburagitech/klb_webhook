@@ -33,6 +33,32 @@ export const triggerAutoPost = action({
   },
 });
 
+export const generateAndSaveImage = action({
+  args: {},
+  handler: async (ctx) => {
+    const config = await ctx.runQuery(api.autoPost.getConfig);
+    const theme = config.theme || "Daily tech tips";
+    
+    const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme });
+    
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true`;
+    const imageRes = await fetch(imageUrl);
+    if (!imageRes.ok) throw new Error("Failed to generate image");
+    
+    const blob = await imageRes.blob();
+    const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
+    
+    const uploadRes = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": "image/jpeg" },
+      body: blob,
+    });
+    const { storageId } = await uploadRes.json();
+    
+    await ctx.runMutation(api.autoPost.addImage, { storageId });
+  },
+});
+
 export const updateConfig = mutation({
   args: {
     enabled: v.optional(v.boolean()),

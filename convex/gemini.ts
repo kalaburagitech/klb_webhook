@@ -63,3 +63,55 @@ export const generateCaption = internalAction({
     return await generateWithGemini(args.theme);
   },
 });
+
+// Ask Gemini to write a highly descriptive prompt for Pollinations AI image generation
+async function generateImagePromptWithGemini(theme: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY is not configured. Set it with `npx convex env set GEMINI_API_KEY <key>`."
+    );
+  }
+
+  const prompt =
+    `You write highly descriptive image generation prompts. ` +
+    `Topic/theme: "${theme}". ` +
+    `Write ONE highly detailed, visual description of an image that represents this theme. ` +
+    `Include lighting, style (e.g. 3D render, sleek, modern), colors, and composition. ` +
+    `Keep it under 40 words. ` +
+    `Return ONLY the description text, no preamble, no quotes, no markdown.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 1.0, maxOutputTokens: 200 },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    console.error("Gemini API Error:", data);
+    throw new Error(data.error?.message || "Unknown error from Gemini API");
+  }
+
+  const text = data.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p.text)
+    .filter(Boolean)
+    .join("")
+    .trim();
+
+  if (!text) {
+    throw new Error("Gemini returned no text");
+  }
+  return text;
+}
+
+export const generateImagePrompt = internalAction({
+  args: { theme: v.string() },
+  handler: async (_ctx, args) => {
+    return await generateImagePromptWithGemini(args.theme);
+  },
+});

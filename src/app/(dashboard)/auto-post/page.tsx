@@ -23,6 +23,7 @@ export default function AutoPostPage() {
   const generateUploadUrl = useMutation("mutations:generateUploadUrl" as any);
   const previewCaption = useAction("gemini:previewCaption" as any);
   const triggerAutoPost = useAction("autoPost:triggerAutoPost" as any);
+  const generateAndSaveImage = useAction("autoPost:generateAndSaveImage" as any);
 
   const [theme, setTheme] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["facebook", "instagram"]);
@@ -31,6 +32,7 @@ export default function AutoPostPage() {
   const [preview, setPreview] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isTriggering, setIsTriggering] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [error, setError] = useState("");
 
   // Sync local form state when config loads.
@@ -113,6 +115,18 @@ export default function AutoPostPage() {
     } finally {
       setIsUploading(false);
       e.target.value = "";
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    setIsGeneratingImage(true);
+    setError("");
+    try {
+      await generateAndSaveImage();
+    } catch (e: any) {
+      setError(e.message || "Failed to generate AI image");
+    } finally {
+      setIsGeneratingImage(false);
     }
   };
 
@@ -257,23 +271,34 @@ export default function AutoPostPage() {
             <h2 className="text-lg font-medium text-white">Image pool</h2>
             <p className="text-sm text-gray-400">Each post rotates to the next image. Instagram requires an image.</p>
           </div>
-          <div className="relative">
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleUpload}
-              disabled={isUploading}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-            />
+          <div className="relative flex gap-3">
             <button
               type="button"
-              disabled={isUploading}
-              className="flex items-center px-5 py-2.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-xl transition-colors disabled:opacity-50"
+              onClick={handleGenerateImage}
+              disabled={isGeneratingImage}
+              className="flex items-center px-5 py-2.5 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-600/30 font-medium rounded-xl transition-all disabled:opacity-50"
             >
-              {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-              Upload images
+              {isGeneratingImage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+              Generate AI Image
             </button>
+            <div className="relative">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleUpload}
+                disabled={isUploading}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <button
+                type="button"
+                disabled={isUploading}
+                className="flex h-full items-center px-5 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-xl transition-colors disabled:opacity-50"
+              >
+                {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                Upload images
+              </button>
+            </div>
           </div>
         </div>
 
