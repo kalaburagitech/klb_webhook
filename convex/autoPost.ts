@@ -4,6 +4,7 @@ import {
   internalQuery,
   internalMutation,
   internalAction,
+  action,
 } from "./_generated/server";
 import { v } from "convex/values";
 import { internal, api } from "./_generated/api";
@@ -22,6 +23,13 @@ export const getConfig = query({
   handler: async (ctx) => {
     const doc = await ctx.db.query("autoPostConfig").first();
     return doc ?? DEFAULT_CONFIG;
+  },
+});
+
+export const triggerAutoPost = action({
+  args: {},
+  handler: async (ctx) => {
+    await ctx.runAction(internal.autoPost.runAutoPost, { slot: "manual_test" });
   },
 });
 

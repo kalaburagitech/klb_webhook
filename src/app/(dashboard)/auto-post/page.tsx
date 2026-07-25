@@ -22,6 +22,7 @@ export default function AutoPostPage() {
   const removeImage = useMutation("autoPost:removeImage" as any);
   const generateUploadUrl = useMutation("mutations:generateUploadUrl" as any);
   const previewCaption = useAction("gemini:previewCaption" as any);
+  const triggerAutoPost = useAction("autoPost:triggerAutoPost" as any);
 
   const [theme, setTheme] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["facebook", "instagram"]);
@@ -29,6 +30,7 @@ export default function AutoPostPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [preview, setPreview] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isTriggering, setIsTriggering] = useState(false);
   const [error, setError] = useState("");
 
   // Sync local form state when config loads.
@@ -73,6 +75,19 @@ export default function AutoPostPage() {
       setError(e.message || "Failed to generate preview");
     } finally {
       setIsPreviewing(false);
+    }
+  };
+
+  const handleManualTrigger = async () => {
+    setIsTriggering(true);
+    setError("");
+    try {
+      await triggerAutoPost();
+      alert("Auto-post triggered successfully! Check your Facebook and Instagram.");
+    } catch (e: any) {
+      setError(e.message || "Failed to trigger auto-post");
+    } finally {
+      setIsTriggering(false);
     }
   };
 
@@ -147,6 +162,17 @@ export default function AutoPostPage() {
               enabled ? "translate-x-7" : "translate-x-1"
             }`}
           />
+        </button>
+      </div>
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleManualTrigger}
+          disabled={isTriggering || (images?.length ?? 0) === 0}
+          className="flex items-center px-4 py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 font-medium rounded-xl transition-all disabled:opacity-50"
+        >
+          {isTriggering ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+          Run Auto-Post Now
         </button>
       </div>
 

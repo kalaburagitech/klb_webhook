@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as autoPost from "../autoPost.js";
 import type * as crons from "../crons.js";
+import type * as gemini from "../gemini.js";
 import type * as http from "../http.js";
 import type * as metaApi from "../metaApi.js";
 import type * as mutations from "../mutations.js";
@@ -22,7 +24,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  autoPost: typeof autoPost;
   crons: typeof crons;
+  gemini: typeof gemini;
   http: typeof http;
   metaApi: typeof metaApi;
   mutations: typeof mutations;
