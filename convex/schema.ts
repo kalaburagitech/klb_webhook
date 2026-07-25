@@ -126,6 +126,7 @@ export default defineSchema({
   autoPostImages: defineTable({
     storageId: v.id("_storage"),
     url: v.string(),
+    caption: v.optional(v.string()),
     createdAt: v.number(),
   }),
 });

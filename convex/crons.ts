@@ -1,5 +1,5 @@
 import { cronJobs } from "convex/server";
-import { internal } from "./_generated/api";
+import { internal, api } from "./_generated/api";
 import { internalMutation, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -13,6 +13,24 @@ crons.interval(
 );
 
 // Gemini-powered daily auto-poster (times in IST; Convex crons run in UTC).
+
+// ----- 7:30 Generation Jobs -----
+// 7:30 AM IST = 02:00 UTC
+crons.cron(
+  "auto-generate-morning",
+  "0 2 * * *",
+  api.autoPost.generateAndSaveImage,
+  {}
+);
+// 7:30 PM IST = 14:00 UTC
+crons.cron(
+  "auto-generate-night",
+  "0 14 * * *",
+  api.autoPost.generateAndSaveImage,
+  {}
+);
+
+// ----- 8:00 Publishing Jobs -----
 // 8:00 AM IST = 02:30 UTC
 crons.cron(
   "auto-post-morning",

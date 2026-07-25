@@ -60,7 +60,7 @@ export const generateAndSaveImage = action({
     });
     const { storageId } = await uploadRes.json();
     
-    await ctx.runMutation(api.autoPost.addImage, { storageId });
+    await ctx.runMutation(api.autoPost.addImage, { storageId, caption });
     
     return caption;
   },
@@ -96,13 +96,17 @@ export const listImages = query({
 });
 
 export const addImage = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { 
+    storageId: v.id("_storage"),
+    caption: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const url = await ctx.storage.getUrl(args.storageId);
     if (!url) throw new Error("Could not resolve uploaded image URL");
     await ctx.db.insert("autoPostImages", {
       storageId: args.storageId,
       url,
+      caption: args.caption,
       createdAt: Date.now(),
     });
   },
@@ -192,17 +196,13 @@ export const runAutoPost = internalAction({
     }
 
     try {
-      // Generate the caption with Gemini first
-      const caption: string = await ctx.runAction(
-        internal.gemini.generateCaption,
-        { theme: config.theme }
-      );
-
+      let caption = "";
       let mediaUrl = "";
-      let nextRotation = config.rotationIndex;
+      let usedImageId: any = null;
 
       if (images.length === 0) {
         // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
+        caption = await ctx.runAction(internal.gemini.generateCaption, { theme: config.theme });
         const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
         
         const seed = Math.floor(Math.random() * 1000000);
@@ -227,10 +227,16 @@ export const runAutoPost = internalAction({
         
         mediaUrl = publicUrl;
       } else {
-        // Use existing pool
-        const index = config.rotationIndex % images.length;
-        mediaUrl = images[index].url;
-        nextRotation = (index + 1) % images.length;
+        // Use the first image in the queue
+        const image = images[0];
+        mediaUrl = image.url;
+        usedImageId = image._id;
+        
+        if (image.caption) {
+          caption = image.caption;
+        } else {
+          caption = await ctx.runAction(internal.gemini.generateCaption, { theme: config.theme });
+        }
       }
 
       // Publish to each configured platform.
@@ -260,9 +266,14 @@ export const runAutoPost = internalAction({
         caption,
         mediaUrl: mediaUrl,
         platforms: config.platforms,
-        nextRotation,
+        nextRotation: config.rotationIndex, // No longer used for queue, but kept for schema compatibility
         slot: args.slot,
       });
+
+      if (usedImageId) {
+        // Remove the posted image from the queue
+        await ctx.runMutation(api.autoPost.removeImage, { id: usedImageId });
+      }
 
       if (errors.length > 0) {
         // Record partial failure

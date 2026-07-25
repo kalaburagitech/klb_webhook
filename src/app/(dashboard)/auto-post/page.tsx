@@ -176,9 +176,10 @@ export default function AutoPostPage() {
         </button>
       </div>
 
+      {/* Status Warning */}
       {enabled && (images?.length ?? 0) === 0 && (
         <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm flex items-center gap-2">
-          <Sparkles className="w-4 h-4" /> Auto-post is ON. Since your image pool is empty, unique images will be generated dynamically using AI for every post!
+          <Sparkles className="w-4 h-4" /> Auto-post is ON. Your queue is empty, but don't worry! New posts will be generated dynamically right before publishing!
         </div>
       )}
 
@@ -275,22 +276,29 @@ export default function AutoPostPage() {
           </div>
         )}
 
-        {/* Image Pool Grid */}
+        {/* Queue Grid */}
         <div className="pt-4 border-t border-gray-800 mt-6">
-          <h3 className="text-sm font-medium text-gray-300 mb-4">Current Image Pool</h3>
+          <h3 className="text-sm font-medium text-gray-300 mb-4">Scheduled Queue (Posts ready to publish)</h3>
           {images === undefined ? (
             <div className="text-gray-500 text-sm py-6 text-center">Loading...</div>
           ) : images.length === 0 ? (
             <div className="py-6 text-center flex flex-col items-center text-gray-500 bg-gray-900/50 rounded-xl border border-dashed border-gray-700/50">
               <ImageIcon className="w-8 h-8 mb-2 text-gray-600" />
-              <span className="text-sm">No images in pool. The auto-poster will generate them dynamically!</span>
+              <span className="text-sm">No pre-generated posts in the queue. They will be generated automatically at 7:30 AM/PM!</span>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {images.map((img: any) => (
-                <div key={img._id} className="relative group rounded-xl overflow-hidden border border-gray-700/50 bg-gray-800 aspect-square shadow-sm hover:border-gray-500 transition-colors">
+                <div key={img._id} className="relative group rounded-xl overflow-hidden border border-gray-700/50 bg-gray-800 shadow-sm hover:border-gray-500 transition-colors flex flex-col">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url} alt="pool" className="w-full h-full object-cover" />
+                  <img src={img.url} alt="pool" className="w-full aspect-square object-cover" />
+                  
+                  {img.caption && (
+                    <div className="p-3 text-xs text-gray-300 bg-gray-900 border-t border-gray-700/50 flex-1">
+                      <div className="line-clamp-4">{img.caption}</div>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => removeImage({ id: img._id })}
                     className="absolute top-2 right-2 p-1.5 bg-black/70 text-red-400 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
