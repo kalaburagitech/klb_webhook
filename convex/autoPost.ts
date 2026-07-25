@@ -39,7 +39,11 @@ export const generateAndSaveImage = action({
     const config = await ctx.runQuery(api.autoPost.getConfig);
     const theme = config.theme || "Daily tech tips";
     
-    const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme });
+    // Generate the caption first
+    const caption: string = await ctx.runAction(internal.gemini.generateCaption, { theme });
+    
+    // Use the highly-detailed caption to generate the image
+    const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
     
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true`;
     const imageRes = await fetch(imageUrl);
@@ -56,6 +60,8 @@ export const generateAndSaveImage = action({
     const { storageId } = await uploadRes.json();
     
     await ctx.runMutation(api.autoPost.addImage, { storageId });
+    
+    return caption;
   },
 });
 

@@ -122,7 +122,8 @@ export default function AutoPostPage() {
     setIsGeneratingImage(true);
     setError("");
     try {
-      await generateAndSaveImage();
+      const generatedCaption = await generateAndSaveImage();
+      setPreview(generatedCaption as string);
     } catch (e: any) {
       setError(e.message || "Failed to generate AI image");
     } finally {
