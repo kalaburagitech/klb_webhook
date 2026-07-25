@@ -26,6 +26,7 @@ export default function AutoPostPage() {
   const generateAndSaveImage = useAction("autoPost:generateAndSaveImage" as any);
 
   const [theme, setTheme] = useState("");
+  const [imagePrompt, setImagePrompt] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["facebook", "instagram"]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -38,6 +39,7 @@ export default function AutoPostPage() {
   useEffect(() => {
     if (config) {
       setTheme(config.theme ?? "Daily tech tips");
+      setImagePrompt(config.imagePrompt ?? "");
       setPlatforms(config.platforms ?? ["facebook", "instagram"]);
     }
   }, [config]);
@@ -57,7 +59,7 @@ export default function AutoPostPage() {
     setIsSaving(true);
     setError("");
     try {
-      await updateConfig({ theme, platforms });
+      await updateConfig({ theme, imagePrompt, platforms });
     } catch (e: any) {
       setError(e.message || "Failed to save settings");
     } finally {
@@ -204,11 +206,23 @@ export default function AutoPostPage() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Topic / theme</label>
+          <label className="text-sm font-medium text-gray-300">Caption topic</label>
+          <p className="text-xs text-gray-500">What the caption is written about. Gemini turns this into marketing copy + hashtags.</p>
           <textarea
             value={theme}
             onChange={(e) => setTheme(e.target.value)}
             placeholder="e.g. Daily tech tips for students and businesses"
+            className="w-full h-24 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300">Image style / prompt</label>
+          <p className="text-xs text-gray-500">Describes what the image looks like. Used exactly as written to generate the image. Leave blank to auto-generate from the caption topic.</p>
+          <textarea
+            value={imagePrompt}
+            onChange={(e) => setImagePrompt(e.target.value)}
+            placeholder="e.g. Abstract futuristic technology background, glowing circuit patterns, blue and cyan gradient, 8K"
             className="w-full h-24 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none"
           />
         </div>

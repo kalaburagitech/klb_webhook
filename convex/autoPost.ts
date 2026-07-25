@@ -12,6 +12,7 @@ import { internal, api } from "./_generated/api";
 const DEFAULT_CONFIG = {
   enabled: false,
   theme: "Daily tech tips",
+  imagePrompt: "",
   platforms: ["facebook", "instagram"],
   rotationIndex: 0,
 };
@@ -38,13 +39,17 @@ export const generateAndSaveImage = action({
   handler: async (ctx) => {
     const config = await ctx.runQuery(api.autoPost.getConfig);
     const theme = config.theme || "Daily tech tips";
-    
-    // Generate the caption first
+
+    // Caption is written ABOUT the topic/theme.
     const caption: string = await ctx.runAction(internal.gemini.generateCaption, { theme });
-    
-    // Use the highly-detailed caption to generate the image
-    const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
-    
+
+    // Image comes from the dedicated image prompt (used verbatim). If none is set,
+    // fall back to letting Gemini build one from the caption topic.
+    const imagePrompt = (config.imagePrompt ?? "").trim();
+    const prompt = imagePrompt
+      ? imagePrompt
+      : await ctx.runAction(internal.gemini.generateImagePrompt, { theme });
+
     const seed = Math.floor(Math.random() * 1000000);
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
     const imageRes = await fetch(imageUrl);
@@ -70,6 +75,7 @@ export const updateConfig = mutation({
   args: {
     enabled: v.optional(v.boolean()),
     theme: v.optional(v.string()),
+    imagePrompt: v.optional(v.string()),
     platforms: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -201,10 +207,15 @@ export const runAutoPost = internalAction({
       let usedImageId: any = null;
 
       if (images.length === 0) {
-        // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
+        // Pool is empty! Generate caption + image on-the-fly.
         caption = await ctx.runAction(internal.gemini.generateCaption, { theme: config.theme });
-        const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
-        
+
+        // Image comes from the dedicated image prompt (verbatim), else Gemini builds one from the theme.
+        const imagePrompt = (config.imagePrompt ?? "").trim();
+        const prompt = imagePrompt
+          ? imagePrompt
+          : await ctx.runAction(internal.gemini.generateImagePrompt, { theme: config.theme });
+
         const seed = Math.floor(Math.random() * 1000000);
         const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
         

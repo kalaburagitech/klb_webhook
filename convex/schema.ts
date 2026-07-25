@@ -112,7 +112,8 @@ export default defineSchema({
   // Singleton config for the Gemini-powered daily auto-poster.
   autoPostConfig: defineTable({
     enabled: v.boolean(),
-    theme: v.string(), // what Gemini writes about, e.g. "Daily tech tips"
+    theme: v.string(), // caption topic — what Gemini writes the caption about, e.g. "Daily tech tips"
+    imagePrompt: v.optional(v.string()), // image style/prompt — used directly to generate the image
     platforms: v.array(v.string()), // ["facebook", "instagram"]
     rotationIndex: v.number(), // next image in the pool to use
     lastRunSlot: v.optional(v.string()), // "morning" | "night" — last slot that ran
