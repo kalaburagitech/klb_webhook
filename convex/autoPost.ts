@@ -171,13 +171,26 @@ export const runAutoPost = internalAction({
       );
 
       // Publish to each configured platform.
+      const errors: string[] = [];
+      let successCount = 0;
+      
       for (const platform of config.platforms) {
-        await ctx.runAction(api.metaApi.publishPost, {
-          platform,
-          content: caption,
-          mediaUrl: image.url,
-          mediaType: "image",
-        });
+        try {
+          await ctx.runAction(api.metaApi.publishPost, {
+            platform,
+            content: caption,
+            mediaUrl: image.url,
+            mediaType: "image",
+          });
+          successCount++;
+        } catch (err: any) {
+          console.error(`Failed to publish to ${platform}:`, err);
+          errors.push(`${platform}: ${err.message || String(err)}`);
+        }
+      }
+
+      if (successCount === 0 && errors.length > 0) {
+        throw new Error(errors.join(" | "));
       }
 
       await ctx.runMutation(internal.autoPost.finalizeSuccess, {
@@ -188,7 +201,15 @@ export const runAutoPost = internalAction({
         slot: args.slot,
       });
 
-      console.log(`Auto-post (${args.slot}) published to ${config.platforms.join(", ")}.`);
+      if (errors.length > 0) {
+        // Record partial failure
+        await ctx.runMutation(internal.autoPost.recordError, {
+          error: "Partial success. Errors: " + errors.join(" | "),
+          slot: args.slot,
+        });
+      }
+
+      console.log(`Auto-post (${args.slot}) finished.`);
     } catch (e: any) {
       await ctx.runMutation(internal.autoPost.recordError, {
         error: e.message || String(e),
