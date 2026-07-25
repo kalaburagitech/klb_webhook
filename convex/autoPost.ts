@@ -17,6 +17,56 @@ const DEFAULT_CONFIG = {
   rotationIndex: 0,
 };
 
+// Generate an image for the given prompt, upload it to Convex storage, and
+// return both the storageId and its public URL.
+//
+// Primary: Gemini image model (best prompt adherence, but needs a billing-enabled
+// Google AI account). Fallback: Pollinations (free) using the same verbatim prompt,
+// so image generation still works on the free tier.
+async function generateAndUploadImage(
+  ctx: any,
+  prompt: string
+): Promise<{ storageId: any; url: string }> {
+  let bytes: Uint8Array;
+  let mimeType: string;
+
+  try {
+    const res = await ctx.runAction(internal.gemini.generateImage, { prompt });
+    const binary = atob(res.data);
+    bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    mimeType = res.mimeType || "image/png";
+  } catch (e: any) {
+    // Gemini image gen unavailable (e.g. free-tier quota = 0). Fall back to
+    // Pollinations with the exact same prompt.
+    console.warn(
+      "Gemini image generation failed, falling back to Pollinations:",
+      e?.message || String(e)
+    );
+    const seed = Math.floor(Math.random() * 1000000);
+    const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
+    const pollRes = await fetch(pollUrl);
+    if (!pollRes.ok) {
+      throw new Error("Both Gemini and Pollinations image generation failed");
+    }
+    bytes = new Uint8Array(await pollRes.arrayBuffer());
+    mimeType = "image/jpeg";
+  }
+
+  const blob = new Blob([bytes], { type: mimeType });
+  const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
+  const uploadRes = await fetch(uploadUrl, {
+    method: "POST",
+    headers: { "Content-Type": mimeType },
+    body: blob,
+  });
+  const { storageId } = await uploadRes.json();
+
+  const url = await ctx.runMutation(api.mutations.getUploadUrl, { storageId });
+  if (!url) throw new Error("Failed to resolve generated image URL");
+  return { storageId, url };
+}
+
 // ---------- Public queries / mutations (dashboard) ----------
 
 export const getConfig = query({
@@ -35,38 +85,29 @@ export const triggerAutoPost = action({
 });
 
 export const generateAndSaveImage = action({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    theme: v.optional(v.string()),
+    imagePrompt: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const config = await ctx.runQuery(api.autoPost.getConfig);
-    const theme = config.theme || "Daily tech tips";
+    // Prefer values passed from the form (preview), else fall back to saved config.
+    const theme = (args.theme ?? config.theme ?? "").trim() || "Daily tech tips";
 
     // Caption is written ABOUT the topic/theme.
     const caption: string = await ctx.runAction(internal.gemini.generateCaption, { theme });
 
     // Image comes from the dedicated image prompt (used verbatim). If none is set,
     // fall back to letting Gemini build one from the caption topic.
-    const imagePrompt = (config.imagePrompt ?? "").trim();
+    const imagePrompt = (args.imagePrompt ?? config.imagePrompt ?? "").trim();
     const prompt = imagePrompt
       ? imagePrompt
       : await ctx.runAction(internal.gemini.generateImagePrompt, { theme });
 
-    const seed = Math.floor(Math.random() * 1000000);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-    const imageRes = await fetch(imageUrl);
-    if (!imageRes.ok) throw new Error("Failed to generate image");
-    
-    const blob = await imageRes.blob();
-    const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
-    
-    const uploadRes = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": "image/jpeg" },
-      body: blob,
-    });
-    const { storageId } = await uploadRes.json();
-    
+    const { storageId } = await generateAndUploadImage(ctx, prompt);
+
     await ctx.runMutation(api.autoPost.addImage, { storageId, caption });
-    
+
     return caption;
   },
 });
@@ -216,27 +257,8 @@ export const runAutoPost = internalAction({
           ? imagePrompt
           : await ctx.runAction(internal.gemini.generateImagePrompt, { theme: config.theme });
 
-        const seed = Math.floor(Math.random() * 1000000);
-        const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-        
-        const imageRes = await fetch(generatedImageUrl);
-        if (!imageRes.ok) throw new Error("Failed to generate on-the-fly image from Pollinations");
-        
-        const blob = await imageRes.blob();
-        const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
-        
-        const uploadRes = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": "image/jpeg" },
-          body: blob,
-        });
-        const { storageId } = await uploadRes.json();
-        
-        // Get public URL using existing getUploadUrl mutation
-        const publicUrl = await ctx.runMutation(api.mutations.getUploadUrl, { storageId });
-        if (!publicUrl) throw new Error("Failed to resolve generated image URL");
-        
-        mediaUrl = publicUrl;
+        const { url } = await generateAndUploadImage(ctx, prompt);
+        mediaUrl = url;
       } else {
         // Use the first image in the queue
         const image = images[0];
