@@ -13,12 +13,11 @@ async function generateWithGemini(theme: string): Promise<string> {
   }
 
   const prompt =
-    `You write social media posts for "KalaburagiTech", a tech company/IT training institute in Kalaburagi, India. ` +
-    `Topic/theme: "${theme}". ` +
-    `Write ONE engaging post caption for Facebook and Instagram. ` +
-    `Keep it under 60 words, friendly and professional, use 1-3 relevant emojis. ` +
-    `End with 5-8 relevant hashtags on their own line (always include #KalaburagiTech). ` +
-    `Return ONLY the caption text, no preamble, no quotes, no markdown.`;
+    `You are an expert social media manager for "KalaburagiTech", a modern IT training institute and software company. ` +
+    `Write ONE highly engaging social media caption about: "${theme}". ` +
+    `Keep it professional, educational, and modern. Use 1-3 emojis. ` +
+    `Include 5 relevant hashtags at the end, including #KalaburagiTech. ` +
+    `Return ONLY the caption text itself. Do not include any meta-text, bullet points, or instructions.`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
   const response = await fetch(url, {
@@ -26,7 +25,7 @@ async function generateWithGemini(theme: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 1.0, maxOutputTokens: 400 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
     }),
   });
 
@@ -74,13 +73,15 @@ async function generateImagePromptWithGemini(theme: string): Promise<string> {
   }
 
   const prompt =
-    `You write highly descriptive image generation prompts. ` +
-    `Topic/theme: "${theme}". ` +
-    `Write ONE highly detailed, visual description of an image that represents this theme. ` +
-    `Include lighting, style (e.g. 3D render, sleek, modern), colors, and composition. ` +
-    `IMPORTANT: DO NOT include any text, typography, letters, or words in the image description. The image must be purely visual/illustrative without any written text. ` +
-    `Keep it under 40 words. ` +
-    `Return ONLY the description text, no preamble, no quotes, no markdown.`;
+    `You write highly descriptive image generation prompts for an IT company. ` +
+    `Theme: "${theme}". ` +
+    `Write ONE highly detailed visual description of an image for this theme. ` +
+    `CRITICAL RULES: ` +
+    `1. The style MUST be sleek, modern, 3D corporate technology illustration (like high-end SaaS graphics). ` +
+    `2. Focus on computers, code, glowing tech elements, futuristic offices, or abstract technology. ` +
+    `3. DO NOT include traditional or cultural human figures. Only modern tech professionals or abstract tech elements. ` +
+    `4. DO NOT include any text, typography, letters, or words in the image. ` +
+    `Keep it under 40 words. Return ONLY the description.`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
   const response = await fetch(url, {
@@ -88,7 +89,7 @@ async function generateImagePromptWithGemini(theme: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 1.0, maxOutputTokens: 200 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 200 },
     }),
   });
 
