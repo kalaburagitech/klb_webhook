@@ -26,6 +26,8 @@ export default defineSchema({
     content: v.string(),
     mediaUrl: v.optional(v.string()),
     mediaIds: v.optional(v.array(v.id("media"))),
+    contentType: v.optional(v.string()), // "image" | "video" (defaults to image for legacy posts)
+    mediaType: v.optional(v.string()), // "image" | "video" | "reels"
     platforms: v.array(v.string()), // ["facebook", "instagram"]
     authorId: v.optional(v.id("users")),
     createdAt: v.number(),
@@ -114,6 +116,11 @@ export default defineSchema({
     enabled: v.boolean(),
     theme: v.string(), // caption topic — what Gemini writes the caption about, e.g. "Daily tech tips"
     imagePrompt: v.optional(v.string()), // image style/prompt — used directly to generate the image
+    videoPrompt: v.optional(v.string()), // video style/prompt — used directly to generate the video
+    contentType: v.optional(v.string()), // default content type for manual generation: "image" | "video"
+    // Daily mix: which content type each fixed slot publishes. Configurable from the dashboard.
+    morningType: v.optional(v.string()), // "image" | "video" (8:00 AM IST slot)
+    nightType: v.optional(v.string()), // "image" | "video" (8:00 PM IST slot)
     platforms: v.array(v.string()), // ["facebook", "instagram"]
     rotationIndex: v.number(), // next image in the pool to use
     lastRunSlot: v.optional(v.string()), // "morning" | "night" — last slot that ran
@@ -123,11 +130,19 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
-  // Pool of images the auto-poster rotates through.
+  // Queue of media (images AND videos) the auto-poster publishes from.
+  // Historically image-only (hence the name); now holds both content types.
   autoPostImages: defineTable({
-    storageId: v.id("_storage"),
-    url: v.string(),
+    // For a video that is still generating, storageId/url are filled in once ready.
+    storageId: v.optional(v.id("_storage")),
+    url: v.optional(v.string()),
     caption: v.optional(v.string()),
+    contentType: v.optional(v.string()), // "image" | "video" (undefined = legacy image)
+    // Video-only fields:
+    videoPrompt: v.optional(v.string()),
+    videoStatus: v.optional(v.string()), // "generating" | "ready" | "failed"
+    videoGenerationId: v.optional(v.string()), // Veo long-running operation name
+    videoError: v.optional(v.string()),
     createdAt: v.number(),
   }),
 });

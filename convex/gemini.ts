@@ -3,6 +3,8 @@ import { v } from "convex/values";
 
 const MODEL = "gemini-flash-latest";
 const IMAGE_MODEL = "gemini-2.5-flash-image";
+// Veo video model (overridable via env in case the account has a different version enabled).
+const VIDEO_MODEL = process.env.VEO_MODEL || "veo-3.0-generate-001";
 
 // Strip meta-text Gemini sometimes wraps around the caption (labels, markdown, quotes).
 function cleanCaption(raw: string): string {
@@ -188,5 +190,153 @@ export const generateImage = internalAction({
   args: { prompt: v.string() },
   handler: async (_ctx, args) => {
     return await generateImageWithGemini(args.prompt);
+  },
+});
+
+// ---------------- Video (Veo) ----------------
+
+// Ask Gemini to write a cinematic, motion-focused prompt for AI video generation.
+async function generateVideoPromptWithGemini(theme: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY is not configured. Set it with `npx convex env set GEMINI_API_KEY <key>`."
+    );
+  }
+
+  const prompt =
+    `You write detailed prompts for an AI video generator (Veo) for "KalaburagiTech", a modern IT company. ` +
+    `Theme: "${theme}". ` +
+    `Write ONE vivid, cinematic description of a short (~8 second) vertical 9:16 social media Reel about this theme. ` +
+    `CRITICAL RULES: ` +
+    `1. Describe camera motion, lighting, and what moves in the scene. ` +
+    `2. Style MUST be sleek, modern, high-end corporate technology (glowing tech, futuristic offices, code, abstract data). ` +
+    `3. DO NOT include traditional or cultural human figures. Only modern tech professionals or abstract tech visuals. ` +
+    `4. DO NOT include any text, typography, letters, words, or logos in the video. ` +
+    `Keep it under 60 words. Return ONLY the description.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.8, maxOutputTokens: 1024 },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    console.error("Gemini API Error:", data);
+    throw new Error(data.error?.message || "Unknown error from Gemini API");
+  }
+
+  const text = data.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p.text)
+    .filter(Boolean)
+    .join("")
+    .trim();
+
+  if (!text) {
+    throw new Error("Gemini returned no text");
+  }
+  return text;
+}
+
+export const generateVideoPrompt = internalAction({
+  args: { theme: v.string() },
+  handler: async (_ctx, args) => {
+    return await generateVideoPromptWithGemini(args.theme);
+  },
+});
+
+// Kick off a Veo video generation. Veo is a long-running operation, so this just
+// STARTS the job and returns the operation name; poll it with pollVideoOperation.
+export const startVideoGeneration = internalAction({
+  args: { prompt: v.string() },
+  handler: async (_ctx, args): Promise<{ operationName: string }> => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "GEMINI_API_KEY is not configured. Set it with `npx convex env set GEMINI_API_KEY <key>`."
+      );
+    }
+
+    // Enforce vertical Reel framing + no text, following the user's prompt for content.
+    const fullPrompt =
+      `${args.prompt}. ` +
+      `Vertical 9:16 Reel. Do NOT include any text, letters, words, logos, or watermarks in the video.`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${VIDEO_MODEL}:predictLongRunning?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instances: [{ prompt: fullPrompt }],
+        parameters: { aspectRatio: "9:16" },
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Veo start error:", data);
+      throw new Error(
+        data.error?.message ||
+          `Failed to start Veo video generation (model: ${VIDEO_MODEL}). The account may not have Veo access.`
+      );
+    }
+
+    const operationName = data.name;
+    if (!operationName) {
+      throw new Error("Veo did not return an operation name");
+    }
+    return { operationName };
+  },
+});
+
+// Poll a Veo long-running operation. Returns done=false while still generating,
+// or done=true with a downloadable videoUri once finished.
+export const pollVideoOperation = internalAction({
+  args: { operationName: v.string() },
+  handler: async (
+    _ctx,
+    args
+  ): Promise<{ done: boolean; videoUri?: string; error?: string }> => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not configured.");
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/${args.operationName}?key=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Veo poll error:", data);
+      throw new Error(data.error?.message || "Failed to poll Veo operation");
+    }
+
+    if (!data.done) {
+      return { done: false };
+    }
+
+    if (data.error) {
+      return { done: true, error: data.error.message || "Veo generation failed" };
+    }
+
+    // Extract the generated video URI, handling a couple of possible response shapes.
+    const resp = data.response ?? {};
+    const sample =
+      resp.generateVideoResponse?.generatedSamples?.[0] ??
+      resp.generatedSamples?.[0] ??
+      resp.generatedVideos?.[0];
+    const videoUri =
+      sample?.video?.uri ?? sample?.video?.videoUri ?? sample?.uri;
+
+    if (!videoUri) {
+      console.error("Veo response had no video uri:", JSON.stringify(data).slice(0, 500));
+      return { done: true, error: "Veo finished but returned no video URI" };
+    }
+
+    return { done: true, videoUri };
   },
 });

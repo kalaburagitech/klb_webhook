@@ -12,22 +12,30 @@ crons.interval(
   internal.crons.processScheduledPosts
 );
 
+// Run every minute to advance in-progress Veo video generations (download + store when done).
+crons.interval(
+  "poll-generating-videos",
+  { minutes: 1 },
+  internal.autoPost.pollGeneratingVideos
+);
+
 // Gemini-powered daily auto-poster (times in IST; Convex crons run in UTC).
+// Each slot honors the daily mix (morningType / nightType) configured in the dashboard.
 
 // ----- 7:30 Generation Jobs -----
 // 7:30 AM IST = 02:00 UTC
 crons.cron(
   "auto-generate-morning",
   "0 2 * * *",
-  api.autoPost.generateAndSaveImage,
-  {}
+  api.autoPost.generateScheduled,
+  { slot: "morning" }
 );
 // 7:30 PM IST = 14:00 UTC
 crons.cron(
   "auto-generate-night",
   "0 14 * * *",
-  api.autoPost.generateAndSaveImage,
-  {}
+  api.autoPost.generateScheduled,
+  { slot: "night" }
 );
 
 // ----- 8:00 Publishing Jobs -----
