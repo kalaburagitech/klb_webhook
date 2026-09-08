@@ -1,12 +1,11 @@
 import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
-const MODEL = "gemini-1.5-flash-latest";
+// Use the OpenAI key from Convex Environment Variables
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-async function generateWithGemini(config: any): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
-
+// Generate a caption using GPT-4o-mini
+async function generateWithOpenAI(config: any): Promise<string> {
   const theme = config.theme || "Daily tech tips";
   const hook = config.reelHook ? `Start with this specific hook: "${config.reelHook}". ` : "";
   const companyName = config.companyName || "KalaburagiTech";
@@ -24,79 +23,93 @@ async function generateWithGemini(config: any): Promise<string> {
     (config.mobile ? `📱 ${config.mobile}\n` : `📱 9880020224\n`) +
     (config.email ? `✉️ ${config.email}` : `✉️ kalaburagitech@gmail.com`);
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`, {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${OPENAI_API_KEY}`
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 400
     }),
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "Gemini API Error");
+  if (!response.ok) {
+    console.error("OpenAI API Error:", data);
+    throw new Error(data.error?.message || "Unknown error from OpenAI API");
+  }
 
-  const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).filter(Boolean).join("").trim();
-  if (!text) throw new Error("Gemini returned no text");
+  const text = data.choices?.[0]?.message?.content?.trim();
+  if (!text) {
+    throw new Error("OpenAI returned no text");
+  }
   return text;
 }
 
-async function generateImagePromptWithGemini(theme: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
+// Generate an image using DALL-E 3
+async function generateImageWithOpenAI(caption: string): Promise<string> {
+  const prompt = 
+    `Create a premium, modern, sleek 3D corporate technology illustration. ` +
+    `Theme: ${caption.substring(0, 500)}. ` +
+    `Focus on computers, code, glowing tech elements, futuristic offices, or abstract technology. ` +
+    `DO NOT include any text, typography, letters, or words in the image. No people.`;
 
-  const prompt =
-    `You write highly descriptive image generation prompts for an IT company. ` +
-    `Theme: "${theme}". ` +
-    `Write ONE highly detailed visual description of an image for this theme. ` +
-    `CRITICAL RULES: ` +
-    `1. The style MUST be sleek, modern, 3D corporate technology illustration (like high-end SaaS graphics). ` +
-    `2. Focus on computers, code, glowing tech elements, futuristic offices, or abstract technology. ` +
-    `3. DO NOT include traditional or cultural human figures. Only modern tech professionals or abstract tech elements. ` +
-    `4. DO NOT include any text, typography, letters, or words in the image. ` +
-    `Keep it under 40 words. Return ONLY the description.`;
-
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`, {
+  const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${OPENAI_API_KEY}`
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 200 },
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      response_format: "b64_json"
     }),
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "Gemini API Error");
+  if (!response.ok) {
+    console.error("OpenAI DALL-E Error:", data);
+    throw new Error(data.error?.message || "Unknown error from DALL-E API");
+  }
 
-  const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).filter(Boolean).join("").trim();
-  if (!text) throw new Error("Gemini returned no text");
-  return text;
+  const b64 = data.data?.[0]?.b64_json;
+  if (!b64) {
+    throw new Error("OpenAI returned no image data");
+  }
+  return b64;
 }
 
 export const previewCaption = action({
   args: { config: v.any() },
   handler: async (_ctx, args) => {
-    return await generateWithGemini(args.config);
+    return await generateWithOpenAI(args.config);
   },
 });
 
 export const generateCaption = internalAction({
   args: { config: v.any() },
   handler: async (_ctx, args) => {
-    return await generateWithGemini(args.config);
+    return await generateWithOpenAI(args.config);
   },
 });
 
 export const generateImagePrompt = internalAction({
   args: { theme: v.string() },
   handler: async (_ctx, args) => {
-    return await generateImagePromptWithGemini(args.theme);
+    return args.theme;
   },
 });
 
 export const generateImage = internalAction({
   args: { caption: v.string() },
   handler: async (_ctx, args) => {
-    return args.caption;
+    return await generateImageWithOpenAI(args.caption);
   },
 });

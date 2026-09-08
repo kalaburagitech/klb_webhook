@@ -47,15 +47,16 @@ export const generateAndSaveImage = action({
     // Generate the caption first
     const caption: string = await ctx.runAction(internal.gemini.generateCaption, { config });
     
-    // Use the highly-detailed caption to generate the image
-    const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
+    // Generate the image using OpenAI DALL-E 3
+    const base64Image = await ctx.runAction(internal.gemini.generateImage, { caption });
     
-    const seed = Math.floor(Math.random() * 1000000);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-    const imageRes = await fetch(imageUrl);
-    if (!imageRes.ok) throw new Error("Failed to generate image");
-    
-    const blob = await imageRes.blob();
+    // Convert base64 to binary Blob
+    const binaryStr = atob(base64Image);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: "image/jpeg" });
     
     const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
     
@@ -266,15 +267,15 @@ export const runAutoPost = internalAction({
       } else if (images.length === 0) {
         // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
         caption = await ctx.runAction(internal.gemini.generateCaption, { config });
-        const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
+        // Generate the image using OpenAI DALL-E 3 on-the-fly
+        const base64Image = await ctx.runAction(internal.gemini.generateImage, { caption });
         
-        const seed = Math.floor(Math.random() * 1000000);
-        const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-        
-        const imageRes = await fetch(generatedImageUrl);
-        if (!imageRes.ok) throw new Error("Failed to generate on-the-fly image from Pollinations");
-        
-        const blob = await imageRes.blob();
+        const binaryStr = atob(base64Image);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: "image/jpeg" });
         
         const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
         
