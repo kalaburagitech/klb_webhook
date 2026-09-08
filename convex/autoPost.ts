@@ -36,21 +36,28 @@ export const triggerAutoPost = action({
 export const generateAndSaveImage = action({
   args: {},
   handler: async (ctx) => {
-    const config = await ctx.runQuery(api.autoPost.getConfig);
-    const theme = config.theme || "Daily tech tips";
+    const state = await ctx.runQuery(internal.autoPost.getState);
+    const config = state.config || DEFAULT_CONFIG;
+    
+    // Temporarily set the hook for preview purposes if one exists
+    if (state.nextHook) {
+      config.reelHook = state.nextHook.hook;
+    }
     
     // Generate the caption first
-    const caption: string = await ctx.runAction(internal.gemini.generateCaption, { theme });
+    const caption: string = await ctx.runAction(internal.gemini.generateCaption, { config });
     
-    // Use the highly-detailed caption to generate the image
-    const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
+    // Generate the image using OpenAI DALL-E 3
+    const base64Image = await ctx.runAction(internal.gemini.generateImage, { caption });
     
-    const seed = Math.floor(Math.random() * 1000000);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
-    const imageRes = await fetch(imageUrl);
-    if (!imageRes.ok) throw new Error("Failed to generate image");
+    // Convert base64 to binary Blob
+    const binaryStr = atob(base64Image);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: "image/jpeg" });
     
-    const blob = await imageRes.blob();
     const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
     
     const uploadRes = await fetch(uploadUrl, {
@@ -71,18 +78,34 @@ export const updateConfig = mutation({
     enabled: v.optional(v.boolean()),
     theme: v.optional(v.string()),
     platforms: v.optional(v.array(v.string())),
+    useStaticLogo: v.optional(v.boolean()),
+    staticLogoStorageId: v.optional(v.id("_storage")),
+    companyName: v.optional(v.string()),
+    website: v.optional(v.string()),
+    mobile: v.optional(v.string()),
+    email: v.optional(v.string()),
+    reelHook: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    let staticLogoUrl = undefined;
+    if (args.staticLogoStorageId) {
+      const url = await ctx.storage.getUrl(args.staticLogoStorageId);
+      if (url) staticLogoUrl = url;
+    }
+
     const existing = await ctx.db.query("autoPostConfig").first();
     const now = Date.now();
+    
+    const patchData: any = { ...args, updatedAt: now };
+    if (staticLogoUrl) patchData.staticLogoUrl = staticLogoUrl;
+
     if (existing) {
-      await ctx.db.patch(existing._id, { ...args, updatedAt: now });
+      await ctx.db.patch(existing._id, patchData);
     } else {
       await ctx.db.insert("autoPostConfig", {
         ...DEFAULT_CONFIG,
-        ...args,
+        ...patchData,
         createdAt: now,
-        updatedAt: now,
       });
     }
   },
@@ -130,7 +153,8 @@ export const getState = internalQuery({
   handler: async (ctx) => {
     const config = await ctx.db.query("autoPostConfig").first();
     const images = await ctx.db.query("autoPostImages").order("asc").collect();
-    return { config, images };
+    const nextHook = await ctx.db.query("reelHooks").filter(q => q.eq(q.field("usedAt"), undefined)).first();
+    return { config, images, nextHook };
   },
 });
 
@@ -168,6 +192,37 @@ export const finalizeSuccess = internalMutation({
   },
 });
 
+export const addReelHook = mutation({
+  args: { hook: v.string() },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("reelHooks", {
+      hook: args.hook,
+      createdAt: Date.now(),
+    });
+  }
+});
+
+export const getReelHooks = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("reelHooks").order("desc").collect();
+  }
+});
+
+export const removeReelHook = mutation({
+  args: { id: v.id("reelHooks") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  }
+});
+
+export const markHookUsed = internalMutation({
+  args: { id: v.id("reelHooks") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { usedAt: Date.now() });
+  }
+});
+
 export const recordError = internalMutation({
   args: { error: v.string(), slot: v.string() },
   handler: async (ctx, args) => {
@@ -188,7 +243,7 @@ export const recordError = internalMutation({
 export const runAutoPost = internalAction({
   args: { slot: v.string() }, // "morning" | "night"
   handler: async (ctx, args) => {
-    const { config, images } = await ctx.runQuery(internal.autoPost.getState, {});
+    const { config, images, nextHook } = await ctx.runQuery(internal.autoPost.getState, {});
 
     if (!config || !config.enabled) {
       console.log(`Auto-post (${args.slot}) skipped: not enabled.`);
@@ -200,18 +255,28 @@ export const runAutoPost = internalAction({
       let mediaUrl = "";
       let usedImageId: any = null;
 
-      if (images.length === 0) {
+      // Set the dynamic reelHook for this run
+      if (nextHook) {
+        config.reelHook = nextHook.hook;
+      }
+
+      if (config.useStaticLogo && config.staticLogoUrl) {
+        // Use the static company logo, do not pop from the queue
+        mediaUrl = config.staticLogoUrl;
+        caption = await ctx.runAction(internal.gemini.generateCaption, { config });
+      } else if (images.length === 0) {
         // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
-        caption = await ctx.runAction(internal.gemini.generateCaption, { theme: config.theme });
-        const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
+        caption = await ctx.runAction(internal.gemini.generateCaption, { config });
+        // Generate the image using OpenAI DALL-E 3 on-the-fly
+        const base64Image = await ctx.runAction(internal.gemini.generateImage, { caption });
         
-        const seed = Math.floor(Math.random() * 1000000);
-        const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
+        const binaryStr = atob(base64Image);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: "image/jpeg" });
         
-        const imageRes = await fetch(generatedImageUrl);
-        if (!imageRes.ok) throw new Error("Failed to generate on-the-fly image from Pollinations");
-        
-        const blob = await imageRes.blob();
         const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
         
         const uploadRes = await fetch(uploadUrl, {
@@ -235,7 +300,7 @@ export const runAutoPost = internalAction({
         if (image.caption) {
           caption = image.caption;
         } else {
-          caption = await ctx.runAction(internal.gemini.generateCaption, { theme: config.theme });
+          caption = await ctx.runAction(internal.gemini.generateCaption, { config });
         }
       }
 
@@ -273,6 +338,10 @@ export const runAutoPost = internalAction({
       if (usedImageId) {
         // Remove the posted image from the queue
         await ctx.runMutation(api.autoPost.removeImage, { id: usedImageId });
+      }
+
+      if (nextHook) {
+        await ctx.runMutation(internal.autoPost.markHookUsed, { id: nextHook._id });
       }
 
       if (errors.length > 0) {

@@ -28,6 +28,9 @@ export default defineSchema({
     mediaIds: v.optional(v.array(v.id("media"))),
     platforms: v.array(v.string()), // ["facebook", "instagram"]
     authorId: v.optional(v.id("users")),
+    // Legacy / Extra fields present in the database
+    contentType: v.optional(v.string()),
+    mediaType: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
     status: v.string(), // "draft", "published", "scheduled", "failed"
@@ -118,6 +121,20 @@ export default defineSchema({
     lastRunSlot: v.optional(v.string()), // "morning" | "night" — last slot that ran
     lastRunAt: v.optional(v.number()),
     lastError: v.optional(v.string()),
+    useStaticLogo: v.optional(v.boolean()),
+    staticLogoStorageId: v.optional(v.id("_storage")),
+    staticLogoUrl: v.optional(v.string()),
+    companyName: v.optional(v.string()),
+    website: v.optional(v.string()),
+    mobile: v.optional(v.string()),
+    email: v.optional(v.string()),
+    reelHook: v.optional(v.string()),
+    // Legacy fields
+    imagePrompt: v.optional(v.string()),
+    contentType: v.optional(v.string()),
+    morningType: v.optional(v.string()),
+    nightType: v.optional(v.string()),
+    videoPrompt: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }),
@@ -127,6 +144,13 @@ export default defineSchema({
     storageId: v.id("_storage"),
     url: v.string(),
     caption: v.optional(v.string()),
+    createdAt: v.number(),
+  }),
+
+  // Day-wise reel hooks
+  reelHooks: defineTable({
+    hook: v.string(),
+    usedAt: v.optional(v.number()),
     createdAt: v.number(),
   }),
 });

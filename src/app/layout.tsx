@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} bg-gray-900 text-gray-100 antialiased`}>
+      <body className={`${inter.className} bg-gray-900 text-gray-100 antialiased`} suppressHydrationWarning>
         <ConvexClientProvider>{children}</ConvexClientProvider>
       </body>
     </html>
