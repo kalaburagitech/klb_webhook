@@ -1,7 +1,7 @@
 import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
-const MODEL = "gemini-1.5-flash-latest";
+const MODEL = "gemini-flash-latest";
 
 async function generateWithGemini(config: any): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
