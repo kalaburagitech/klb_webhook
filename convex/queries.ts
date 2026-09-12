@@ -17,7 +17,7 @@ export const getDuePosts = internalQuery({
     const fullPosts = await Promise.all(
       posts.map(async (sp) => {
         const post = await ctx.db.get(sp.postId);
-        return { ...sp, content: post?.content || "" };
+        return { ...sp, content: post?.content || "", mediaUrl: post?.mediaUrl };
       })
     );
     
@@ -39,7 +39,7 @@ export const getScheduledPosts = query({
     const fullPosts = await Promise.all(
       posts.map(async (sp) => {
         const post = await ctx.db.get(sp.postId);
-        return { ...sp, content: post?.content || "" };
+        return { ...sp, content: post?.content || "", mediaUrl: post?.mediaUrl };
       })
     );
     

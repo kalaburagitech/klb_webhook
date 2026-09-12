@@ -24,7 +24,6 @@ export default function AutoPostPage() {
   const addReelHook = useMutation("autoPost:addReelHook" as any);
   const removeReelHook = useMutation("autoPost:removeReelHook" as any);
   const generateUploadUrl = useMutation("mutations:generateUploadUrl" as any);
-  const previewCaption = useAction("gemini:previewCaption" as any);
   const triggerAutoPost = useAction("autoPost:triggerAutoPost" as any);
   const generateAndSaveImage = useAction("autoPost:generateAndSaveImage" as any);
 
@@ -146,9 +145,8 @@ export default function AutoPostPage() {
         body: file,
       });
       const { storageId } = await result.json();
-      await updateConfig({ useStaticLogo: true, staticLogoStorageId: storageId });
-      setUseStaticLogo(true);
-      alert("Company logo uploaded successfully!");
+      await updateConfig({ staticLogoStorageId: storageId });
+      alert("Company logo uploaded — it will now be composed into generated ads.");
     } catch (err: any) {
       console.error(err);
       setError("Failed to upload company logo");
@@ -185,7 +183,7 @@ export default function AutoPostPage() {
           Auto-Post (AI)
         </h1>
         <p className="text-gray-400">
-          Gemini writes a caption and auto-publishes to your pages twice a day, rotating through your image pool.
+          OpenAI writes the caption and generates a branded ad image, then auto-publishes to your pages twice a day.
         </p>
       </div>
 
@@ -223,7 +221,7 @@ export default function AutoPostPage() {
       <div className="flex justify-end">
         <button
           onClick={handleManualTrigger}
-          disabled={isTriggering || (images?.length ?? 0) === 0}
+          disabled={isTriggering}
           className="flex items-center px-4 py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 font-medium rounded-xl transition-all disabled:opacity-50"
         >
           {isTriggering ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
@@ -344,10 +342,11 @@ export default function AutoPostPage() {
         <div className="flex items-center justify-between border-t border-gray-800 pt-4">
           <div>
             <label className="text-sm font-medium text-white flex items-center gap-2">
-              Use Fixed Company Logo
+              Post logo as-is (skip AI image)
             </label>
             <p className="text-xs text-gray-400 mt-1">
-              If enabled, Auto-Post will always use your uploaded logo instead of generating new AI images.
+              ON: publishes your raw logo every time. OFF: OpenAI generates a fresh ad
+              and composes your uploaded logo, company name, phone and website into it.
             </p>
           </div>
           <button
@@ -421,13 +420,17 @@ export default function AutoPostPage() {
             </div>
           </div>
   
-          {config?.staticLogoUrl && useStaticLogo && (
+          {config?.staticLogoUrl && (
             <div className="mt-4 p-4 bg-purple-900/10 border border-purple-500/20 rounded-xl flex items-center gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={config.staticLogoUrl} alt="Company Logo" className="w-16 h-16 object-cover rounded-lg border border-purple-500/30" />
               <div className="text-sm text-purple-300">
                 <p className="font-medium">Active Company Logo</p>
-                <p className="text-purple-400/80">This image will be used for all auto-posts.</p>
+                <p className="text-purple-400/80">
+                  {useStaticLogo
+                    ? "Published as-is on every auto-post."
+                    : "Composed into every AI-generated ad."}
+                </p>
               </div>
             </div>
           )}

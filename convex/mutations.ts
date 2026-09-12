@@ -8,6 +8,16 @@ export const updateScheduledPostStatus = internalMutation({
       status: args.status,
       updatedAt: Date.now(),
     });
+
+    // Keep the parent post in sync, otherwise the dashboard shows it as
+    // "scheduled" forever after it has actually gone out.
+    const scheduled = await ctx.db.get(args.id);
+    if (scheduled) {
+      await ctx.db.patch(scheduled.postId, {
+        status: args.status,
+        updatedAt: Date.now(),
+      });
+    }
   },
 });
 

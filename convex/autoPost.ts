@@ -9,12 +9,34 @@ import {
 import { v } from "convex/values";
 import { internal, api } from "./_generated/api";
 
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG: any = {
   enabled: false,
   theme: "Daily tech tips",
   platforms: ["facebook", "instagram"],
   rotationIndex: 0,
 };
+
+// Writes a caption + branded image and returns both. Shared by the manual
+// "Generate preview" button and the cron, so there is exactly one image path.
+async function generateBrandedPost(ctx: any, config: any) {
+  const caption: string = await ctx.runAction(internal.openai.generateCaption, {
+    config,
+  });
+
+  const b64: string = await ctx.runAction(internal.openai.generateImage, {
+    theme: caption,
+    config,
+  });
+
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const storageId = await ctx.storage.store(
+    new Blob([bytes], { type: "image/jpeg" })
+  );
+  const url = await ctx.storage.getUrl(storageId);
+  if (!url) throw new Error("Could not resolve the generated image URL");
+
+  return { caption, storageId, url };
+}
 
 // ---------- Public queries / mutations (dashboard) ----------
 
@@ -35,68 +57,33 @@ export const triggerAutoPost = action({
 
 export const generateAndSaveImage = action({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<string> => {
     const state = await ctx.runQuery(internal.autoPost.getState);
     const config = state.config || DEFAULT_CONFIG;
-    
+
     // Temporarily set the hook for preview purposes if one exists
     if (state.nextHook) {
       config.reelHook = state.nextHook.hook;
     }
-    
-    // Generate the caption first
-    let caption: string = await ctx.runAction(internal.gemini.generateCaption, { config });
-    
-    // Generate a highly detailed visual prompt for the AI Image generator
-    const visualPrompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
-    
-    // Call our Render Python Microservice with the visual prompt!
-    const pythonOutput = await ctx.runAction(internal.gemini.generateImage, { caption: visualPrompt });
-    
-    // The Python output might be a direct URL, a base64 string, or markdown containing an image URL.
-    let blob: Blob;
-    
-    // Extract base64 or URL from the string
-    const base64Match = pythonOutput.match(/data:image\/[^;]+;base64,([a-zA-Z0-9+/=]+)/);
-    const urlMatch = pythonOutput.match(/https?:\/\/[^\s)\]'"]+/);
-    
-    if (base64Match) {
-      const base64Data = base64Match[1];
-      const binaryStr = atob(base64Data);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-      }
-      blob = new Blob([bytes], { type: "image/jpeg" });
-    } else if (urlMatch) {
-      const imageUrl = urlMatch[0];
-      const imageRes = await fetch(imageUrl);
-      if (!imageRes.ok) throw new Error("Failed to fetch image from URL returned by Python service");
-      blob = await imageRes.blob();
-    } else if (pythonOutput.startsWith("/9j/") || pythonOutput.startsWith("iVB")) {
-      // Raw base64 string without data prefix
-      const binaryStr = atob(pythonOutput);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-      }
-      blob = new Blob([bytes], { type: "image/jpeg" });
-    } else {
-      throw new Error(`Failed to extract image from Python service output: ${pythonOutput.substring(0, 100)}`);
-    }
-    
-    const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
-    
-    const uploadRes = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": "image/jpeg" },
-      body: blob,
-    });
-    const { storageId } = await uploadRes.json();
-    
+
+    const { caption, storageId } = await generateBrandedPost(ctx, config);
     await ctx.runMutation(api.autoPost.addImage, { storageId, caption });
-    
+
     return caption;
+  },
+});
+
+// Cron entry point — unlike the manual button, this respects the master switch
+// so a disabled auto-poster does not quietly burn OpenAI credits twice a day.
+export const generateIfEnabled = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const { config } = await ctx.runQuery(internal.autoPost.getState);
+    if (!config?.enabled) {
+      console.log("Auto-generate skipped: not enabled.");
+      return;
+    }
+    await ctx.runAction(api.autoPost.generateAndSaveImage, {});
   },
 });
 
@@ -272,7 +259,9 @@ export const runAutoPost = internalAction({
   handler: async (ctx, args) => {
     const { config, images, nextHook } = await ctx.runQuery(internal.autoPost.getState, {});
 
-    if (!config || !config.enabled) {
+    // "Run Auto-Post Now" bypasses the master switch so you can test without
+    // arming the twice-daily cron.
+    if (!config || (!config.enabled && args.slot !== "manual_test")) {
       console.log(`Auto-post (${args.slot}) skipped: not enabled.`);
       return;
     }
@@ -288,61 +277,14 @@ export const runAutoPost = internalAction({
       }
 
       if (config.useStaticLogo && config.staticLogoUrl) {
-        // Use the static company logo, do not pop from the queue
+        // Post the logo as-is, do not pop from the queue
         mediaUrl = config.staticLogoUrl;
-        caption = await ctx.runAction(internal.gemini.generateCaption, { config });
+        caption = await ctx.runAction(internal.openai.generateCaption, { config });
       } else if (images.length === 0) {
-        // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
-        caption = await ctx.runAction(internal.gemini.generateCaption, { config });
-        
-        const visualPrompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
-        
-        // Call our Render Python Microservice on-the-fly!
-        const pythonOutput = await ctx.runAction(internal.gemini.generateImage, { caption: visualPrompt });
-        
-        let blob: Blob;
-        
-        const base64Match = pythonOutput.match(/data:image\/[^;]+;base64,([a-zA-Z0-9+/=]+)/);
-        const urlMatch = pythonOutput.match(/https?:\/\/[^\s)\]'"]+/);
-        
-        if (base64Match) {
-          const base64Data = base64Match[1];
-          const binaryStr = atob(base64Data);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-          }
-          blob = new Blob([bytes], { type: "image/jpeg" });
-        } else if (urlMatch) {
-          const imageUrl = urlMatch[0];
-          const imageRes = await fetch(imageUrl);
-          if (!imageRes.ok) throw new Error("Failed to fetch image from URL returned by Python service");
-          blob = await imageRes.blob();
-        } else if (pythonOutput.startsWith("/9j/") || pythonOutput.startsWith("iVB")) {
-          const binaryStr = atob(pythonOutput);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-          }
-          blob = new Blob([bytes], { type: "image/jpeg" });
-        } else {
-          throw new Error(`Failed to extract image from Python service output: ${pythonOutput.substring(0, 100)}`);
-        }
-        
-        const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
-        
-        const uploadRes = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": "image/jpeg" },
-          body: blob,
-        });
-        const { storageId } = await uploadRes.json();
-        
-        // Get public URL using existing getUploadUrl mutation
-        const publicUrl = await ctx.runMutation(api.mutations.getUploadUrl, { storageId });
-        if (!publicUrl) throw new Error("Failed to resolve generated image URL");
-        
-        mediaUrl = publicUrl;
+        // Pool is empty — generate a fresh branded ad on the fly.
+        const generated = await generateBrandedPost(ctx, config);
+        caption = generated.caption;
+        mediaUrl = generated.url;
       } else {
         // Use the first image in the queue
         const image = images[0];
@@ -352,7 +294,7 @@ export const runAutoPost = internalAction({
         if (image.caption) {
           caption = image.caption;
         } else {
-          caption = await ctx.runAction(internal.gemini.generateCaption, { config });
+          caption = await ctx.runAction(internal.openai.generateCaption, { config });
         }
       }
 

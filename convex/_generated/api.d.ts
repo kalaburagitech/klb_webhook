@@ -10,7 +10,7 @@
 
 import type * as autoPost from "../autoPost.js";
 import type * as crons from "../crons.js";
-import type * as gemini from "../gemini.js";
+import type * as openai from "../openai.js";
 import type * as http from "../http.js";
 import type * as metaApi from "../metaApi.js";
 import type * as mutations from "../mutations.js";
@@ -26,7 +26,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   autoPost: typeof autoPost;
   crons: typeof crons;
-  gemini: typeof gemini;
+  openai: typeof openai;
   http: typeof http;
   metaApi: typeof metaApi;
   mutations: typeof mutations;

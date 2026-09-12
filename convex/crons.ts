@@ -19,14 +19,14 @@ crons.interval(
 crons.cron(
   "auto-generate-morning",
   "0 2 * * *",
-  api.autoPost.generateAndSaveImage,
+  internal.autoPost.generateIfEnabled,
   {}
 );
 // 7:30 PM IST = 14:00 UTC
 crons.cron(
   "auto-generate-night",
   "0 14 * * *",
-  api.autoPost.generateAndSaveImage,
+  internal.autoPost.generateIfEnabled,
   {}
 );
 
@@ -54,12 +54,14 @@ export const processScheduledPosts = internalAction({
     
     for (const post of pendingPosts) {
       try {
-        // Try to publish
-        const result = await ctx.runAction(internal.metaApi.publishPost, {
-          platform: post.platforms[0], // simplified, ideally loop platforms
-          content: post.content,
-          // mediaUrl: post.mediaUrl, // Need to join with media table in a real app
-        });
+        for (const platform of post.platforms) {
+          await ctx.runAction(api.metaApi.publishPost, {
+            platform,
+            content: post.content,
+            mediaUrl: post.mediaUrl,
+            mediaType: "image",
+          });
+        }
 
         // Mark success
         await ctx.runMutation(internal.mutations.updateScheduledPostStatus, {
