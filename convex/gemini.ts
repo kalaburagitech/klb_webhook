@@ -30,6 +30,12 @@ async function generateWithGemini(config: any): Promise<string> {
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
     }),
   });
 
@@ -37,7 +43,10 @@ async function generateWithGemini(config: any): Promise<string> {
   if (!response.ok) throw new Error(data.error?.message || "Gemini API Error");
 
   const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).filter(Boolean).join("").trim();
-  if (!text) throw new Error("Gemini returned no text");
+  if (!text) {
+    console.error("Gemini full response data:", JSON.stringify(data, null, 2));
+    throw new Error(`Gemini returned no text. Reason: ${data.candidates?.[0]?.finishReason || 'Unknown'}. Check Convex logs for full response.`);
+  }
   return text;
 }
 
