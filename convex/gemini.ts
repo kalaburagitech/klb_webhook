@@ -61,9 +61,8 @@ async function generateImagePromptWithGemini(theme: string): Promise<string> {
     `CRITICAL RULES: ` +
     `1. The style MUST be sleek, modern, 3D corporate technology illustration (like high-end SaaS graphics). ` +
     `2. Focus on computers, code, glowing tech elements, futuristic offices, or abstract technology. ` +
-    `3. DO NOT include traditional or cultural human figures. Only modern tech professionals or abstract tech elements. ` +
-    `4. DO NOT include any text, typography, letters, or words in the image. ` +
-    `Keep it under 40 words. Return ONLY the description.`;
+    `3. ALWAYS include bold, clean typography directly in the image with the text: "KALABURAGI TECH" and "9880020224 | kalaburagitech.com". ` +
+    `Keep it under 60 words. Return ONLY the description.`;
 
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`, {
     method: "POST",
@@ -71,6 +70,12 @@ async function generateImagePromptWithGemini(theme: string): Promise<string> {
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 200 },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
     }),
   });
 
@@ -106,6 +111,24 @@ export const generateImagePrompt = internalAction({
 export const generateImage = internalAction({
   args: { caption: v.string() },
   handler: async (_ctx, args) => {
-    return args.caption;
+    // Call the Python Microservice hosted on Render
+    const response = await fetch("https://klb-webhook.onrender.com/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: args.caption })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Python Service Error:", errorText);
+      throw new Error(`Python Service Error: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    if (!data.result) {
+      throw new Error("Python Service returned no result");
+    }
+    
+    return data.result;
   },
 });
