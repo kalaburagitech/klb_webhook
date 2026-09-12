@@ -47,40 +47,15 @@ export const generateAndSaveImage = action({
     // Generate the caption first
     const caption: string = await ctx.runAction(internal.gemini.generateCaption, { config });
     
-    // Call our Render Python Microservice!
-    const pythonOutput = await ctx.runAction(internal.gemini.generateImage, { caption });
+    // Use the highly-detailed caption to generate the image
+    const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
     
-    // The Python output might be a direct URL, a base64 string, or markdown containing an image URL.
-    let blob: Blob;
+    const seed = Math.floor(Math.random() * 1000000);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
+    const imageRes = await fetch(imageUrl);
+    if (!imageRes.ok) throw new Error("Failed to generate image");
     
-    // Extract base64 or URL from the string
-    const base64Match = pythonOutput.match(/data:image\/[^;]+;base64,([a-zA-Z0-9+/=]+)/);
-    const urlMatch = pythonOutput.match(/https?:\/\/[^\s)\]'"]+/);
-    
-    if (base64Match) {
-      const base64Data = base64Match[1];
-      const binaryStr = atob(base64Data);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-      }
-      blob = new Blob([bytes], { type: "image/jpeg" });
-    } else if (urlMatch) {
-      const imageUrl = urlMatch[0];
-      const imageRes = await fetch(imageUrl);
-      if (!imageRes.ok) throw new Error("Failed to fetch image from URL returned by Python service");
-      blob = await imageRes.blob();
-    } else if (pythonOutput.startsWith("/9j/") || pythonOutput.startsWith("iVB")) {
-      // Raw base64 string without data prefix
-      const binaryStr = atob(pythonOutput);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-      }
-      blob = new Blob([bytes], { type: "image/jpeg" });
-    } else {
-      throw new Error(`Failed to extract image from Python service output: ${pythonOutput.substring(0, 100)}`);
-    }
+    const blob = await imageRes.blob();
     
     const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
     
@@ -291,37 +266,15 @@ export const runAutoPost = internalAction({
       } else if (images.length === 0) {
         // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
         caption = await ctx.runAction(internal.gemini.generateCaption, { config });
-        // Call our Render Python Microservice on-the-fly!
-        const pythonOutput = await ctx.runAction(internal.gemini.generateImage, { caption });
+        const prompt = await ctx.runAction(internal.gemini.generateImagePrompt, { theme: caption });
         
-        let blob: Blob;
+        const seed = Math.floor(Math.random() * 1000000);
+        const generatedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
         
-        const base64Match = pythonOutput.match(/data:image\/[^;]+;base64,([a-zA-Z0-9+/=]+)/);
-        const urlMatch = pythonOutput.match(/https?:\/\/[^\s)\]'"]+/);
+        const imageRes = await fetch(generatedImageUrl);
+        if (!imageRes.ok) throw new Error("Failed to generate on-the-fly image from Pollinations");
         
-        if (base64Match) {
-          const base64Data = base64Match[1];
-          const binaryStr = atob(base64Data);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-          }
-          blob = new Blob([bytes], { type: "image/jpeg" });
-        } else if (urlMatch) {
-          const imageUrl = urlMatch[0];
-          const imageRes = await fetch(imageUrl);
-          if (!imageRes.ok) throw new Error("Failed to fetch image from URL returned by Python service");
-          blob = await imageRes.blob();
-        } else if (pythonOutput.startsWith("/9j/") || pythonOutput.startsWith("iVB")) {
-          const binaryStr = atob(pythonOutput);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-          }
-          blob = new Blob([bytes], { type: "image/jpeg" });
-        } else {
-          throw new Error(`Failed to extract image from Python service output: ${pythonOutput.substring(0, 100)}`);
-        }
+        const blob = await imageRes.blob();
         
         const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
         

@@ -1,7 +1,7 @@
 import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
-const MODEL = "gemini-flash-latest";
+const MODEL = "gemini-1.5-flash-latest";
 
 async function generateWithGemini(config: any): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -97,28 +97,6 @@ export const generateImagePrompt = internalAction({
 export const generateImage = internalAction({
   args: { caption: v.string() },
   handler: async (_ctx, args) => {
-    // Call the Python Microservice hosted on Render
-    const response = await fetch("https://klb-webhook.onrender.com/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: args.caption })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Python Service Error:", errorText);
-      throw new Error(`Python Service Error: ${errorText}`);
-    }
-    
-    const data = await response.json();
-    if (!data.result) {
-      throw new Error("Python Service returned no result");
-    }
-    
-    // The Python script (Antigravity SDK) returns the text output.
-    // If the text contains a URL or base64, we need to extract it, or if it returns the image base64 directly, use it.
-    // Assuming the Antigravity SDK returned a markdown string with the image URL, or base64.
-    // We will return it to autoPost.ts.
-    return data.result;
+    return args.caption;
   },
 });
