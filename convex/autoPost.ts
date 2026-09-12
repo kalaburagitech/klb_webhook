@@ -47,16 +47,40 @@ export const generateAndSaveImage = action({
     // Generate the caption first
     const caption: string = await ctx.runAction(internal.gemini.generateCaption, { config });
     
-    // Generate the image using OpenAI DALL-E 3
-    const base64Image = await ctx.runAction(internal.gemini.generateImage, { caption });
+    // Call our Render Python Microservice!
+    const pythonOutput = await ctx.runAction(internal.gemini.generateImage, { caption });
     
-    // Convert base64 to binary Blob
-    const binaryStr = atob(base64Image);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
+    // The Python output might be a direct URL, a base64 string, or markdown containing an image URL.
+    let blob: Blob;
+    
+    // Extract base64 or URL from the string
+    const base64Match = pythonOutput.match(/data:image\/[^;]+;base64,([a-zA-Z0-9+/=]+)/);
+    const urlMatch = pythonOutput.match(/https?:\/\/[^\s)\]'"]+/);
+    
+    if (base64Match) {
+      const base64Data = base64Match[1];
+      const binaryStr = atob(base64Data);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+      }
+      blob = new Blob([bytes], { type: "image/jpeg" });
+    } else if (urlMatch) {
+      const imageUrl = urlMatch[0];
+      const imageRes = await fetch(imageUrl);
+      if (!imageRes.ok) throw new Error("Failed to fetch image from URL returned by Python service");
+      blob = await imageRes.blob();
+    } else if (pythonOutput.startsWith("/9j/") || pythonOutput.startsWith("iVB")) {
+      // Raw base64 string without data prefix
+      const binaryStr = atob(pythonOutput);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+      }
+      blob = new Blob([bytes], { type: "image/jpeg" });
+    } else {
+      throw new Error(`Failed to extract image from Python service output: ${pythonOutput.substring(0, 100)}`);
     }
-    const blob = new Blob([bytes], { type: "image/jpeg" });
     
     const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
     
@@ -267,15 +291,37 @@ export const runAutoPost = internalAction({
       } else if (images.length === 0) {
         // Pool is empty! Generate image on-the-fly based on the caption itself for hyper-relevance.
         caption = await ctx.runAction(internal.gemini.generateCaption, { config });
-        // Generate the image using OpenAI DALL-E 3 on-the-fly
-        const base64Image = await ctx.runAction(internal.gemini.generateImage, { caption });
+        // Call our Render Python Microservice on-the-fly!
+        const pythonOutput = await ctx.runAction(internal.gemini.generateImage, { caption });
         
-        const binaryStr = atob(base64Image);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
+        let blob: Blob;
+        
+        const base64Match = pythonOutput.match(/data:image\/[^;]+;base64,([a-zA-Z0-9+/=]+)/);
+        const urlMatch = pythonOutput.match(/https?:\/\/[^\s)\]'"]+/);
+        
+        if (base64Match) {
+          const base64Data = base64Match[1];
+          const binaryStr = atob(base64Data);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+          }
+          blob = new Blob([bytes], { type: "image/jpeg" });
+        } else if (urlMatch) {
+          const imageUrl = urlMatch[0];
+          const imageRes = await fetch(imageUrl);
+          if (!imageRes.ok) throw new Error("Failed to fetch image from URL returned by Python service");
+          blob = await imageRes.blob();
+        } else if (pythonOutput.startsWith("/9j/") || pythonOutput.startsWith("iVB")) {
+          const binaryStr = atob(pythonOutput);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+          }
+          blob = new Blob([bytes], { type: "image/jpeg" });
+        } else {
+          throw new Error(`Failed to extract image from Python service output: ${pythonOutput.substring(0, 100)}`);
         }
-        const blob = new Blob([bytes], { type: "image/jpeg" });
         
         const uploadUrl = await ctx.runMutation(api.mutations.generateUploadUrl);
         
