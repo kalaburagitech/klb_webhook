@@ -24,6 +24,12 @@ function brand(config: any) {
   };
 }
 
+// Hooks are written as "Part 3 — ..." so one campaign reads as a series. The
+// number drives both the caption opener and the badge drawn on the image.
+function seriesPart(hook: string): string | null {
+  return /^\s*part\s+(\d+)/i.exec(hook || "")?.[1] ?? null;
+}
+
 async function chat(prompt: string, maxTokens: number): Promise<string> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -57,14 +63,20 @@ export const generateCaption = internalAction({
     // 1000+ chars in verbatim makes the model answer with a content plan (often
     // JSON) instead of a caption, so only the opening line is used as the hook.
     const rawHook: string = args.config?.reelHook?.trim() || "";
+    const part = seriesPart(rawHook);
     const hook = rawHook
       ? `Use this as the inspiration for your opening line: "${rawHook.slice(0, 180)}". `
+      : "";
+    const series = part
+      ? `Begin the caption with exactly "Part ${part} — " so it reads as one ` +
+        `entry in an ongoing series. `
       : "";
 
     const caption = await chat(
       `You are an expert social media manager for "${b.name}". ` +
         `Write ONE highly engaging social media caption about: "${theme}". ` +
         hook +
+        series +
         `Keep it professional, educational and modern, and under 80 words. ` +
         `Use 1-3 emojis. ` +
         `End with 5 relevant hashtags including #${b.name.replace(/\s+/g, "")}. ` +
@@ -97,6 +109,7 @@ export const generateImage = internalAction({
   handler: async (_ctx, args): Promise<string> => {
     const b = brand(args.config);
     const logoUrl = args.config?.staticLogoUrl;
+    const part = seriesPart(args.config?.reelHook || "");
 
     const prompt =
       `A sleek, modern 3D corporate technology advertisement for an IT company. ` +
@@ -108,16 +121,26 @@ export const generateImage = internalAction({
         ? `Place the provided company logo prominently in the top-left corner, ` +
           `preserving its exact colours and shape. `
         : "") +
-      // The phone number is deliberately NOT rendered into the image: image
-      // models drop digits from long numbers (9880020224 came out as 988002024)
-      // and a wrong number on a live ad is worse than no number. It is appended
-      // exactly, in code, to every caption instead.
-      `Render this text in the image with bold, clean, perfectly spelled typography: ` +
-      `"${b.name}" as the headline, and "${b.website}" as a footer. ` +
-      `The footer must sit on a flat horizontal bar across the bottom — perfectly ` +
-      `level, face-on, not skewed into perspective, and with clear margin so no ` +
-      `letter is cropped by the frame edge. ` +
-      `No other text anywhere in the image. Do not invent any phone number.`;
+      // Contact details are deliberately NOT drawn into the image. Measured over
+      // five renders, gpt-image-1 got the domain right 1/5 (kkalaburagaitech.com,
+      // kalaburaggitech.com, kalaburagictech.com) and dropped a digit from the
+      // phone number. A misspelled domain on a live ad sends customers nowhere,
+      // so every exact string lives in the caption, appended in code.
+      // Short, common words like the company name render reliably; long unique
+      // strings do not.
+      `Render the company name "${b.name}" in the image as a bold, clean, ` +
+      `perfectly spelled headline. ` +
+      (part
+        ? `Also render a small, bold, high-contrast pill badge in the TOP-RIGHT ` +
+          `corner reading exactly "PART ${part}" — two words, nothing else in it. ` +
+          `Inset it well away from the edges so the whole badge, including its ` +
+          `rounded ends, sits fully inside the frame and nothing is cropped. `
+        : "") +
+      `Keep all text perfectly level and face-on, never skewed into perspective, ` +
+      `with clear margin from the frame edges so no letter is cropped. ` +
+      `Absolutely no other text anywhere in the image — in particular, do NOT ` +
+      `draw any website address, URL, domain name, phone number or email. ` +
+      `Leave clean empty space where a footer bar would otherwise go.`;
 
     let res: Response;
 
