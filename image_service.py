@@ -13,9 +13,13 @@ class ImageRequest(BaseModel):
 @app.post("/generate-image")
 async def generate_image(req: ImageRequest):
     try:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable is not set")
+            
         config = LocalAgentConfig(
             vertex=True,
-            api_key="AIzaSyD2-KO6wg3xwJNXfjb_afEjytLrzCWD2AQ",
+            api_key=api_key,
             system_instructions="You are an AI assistant specialized in generating and handling visual assets."
         )
         
