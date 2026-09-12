@@ -10,10 +10,10 @@
 
 import type * as autoPost from "../autoPost.js";
 import type * as crons from "../crons.js";
-import type * as openai from "../openai.js";
 import type * as http from "../http.js";
 import type * as metaApi from "../metaApi.js";
 import type * as mutations from "../mutations.js";
+import type * as openai from "../openai.js";
 import type * as queries from "../queries.js";
 import type * as webhookLogs from "../webhookLogs.js";
 
@@ -26,10 +26,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   autoPost: typeof autoPost;
   crons: typeof crons;
-  openai: typeof openai;
   http: typeof http;
   metaApi: typeof metaApi;
   mutations: typeof mutations;
+  openai: typeof openai;
   queries: typeof queries;
   webhookLogs: typeof webhookLogs;
 }>;

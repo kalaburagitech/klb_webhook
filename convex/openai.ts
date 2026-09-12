@@ -52,24 +52,38 @@ export const generateCaption = internalAction({
   handler: async (_ctx, args) => {
     const b = brand(args.config);
     const theme = args.config?.theme || "Daily tech tips";
-    const hook = args.config?.reelHook
-      ? `Open with this exact hook: "${args.config.reelHook}". `
+
+    // Hooks are free text and people paste whole content calendars in. Feeding
+    // 1000+ chars in verbatim makes the model answer with a content plan (often
+    // JSON) instead of a caption, so only the opening line is used as the hook.
+    const rawHook: string = args.config?.reelHook?.trim() || "";
+    const hook = rawHook
+      ? `Use this as the inspiration for your opening line: "${rawHook.slice(0, 180)}". `
       : "";
 
     const caption = await chat(
       `You are an expert social media manager for "${b.name}". ` +
         `Write ONE highly engaging social media caption about: "${theme}". ` +
         hook +
-        `Keep it professional, educational and modern. Use 1-3 emojis. ` +
+        `Keep it professional, educational and modern, and under 80 words. ` +
+        `Use 1-3 emojis. ` +
         `End with 5 relevant hashtags including #${b.name.replace(/\s+/g, "")}. ` +
-        `Return ONLY the caption text — no preamble, no bullet points, no quotes.`,
-      400
+        `Return ONLY the caption as plain text. Never return JSON, never return ` +
+        `a list of days or topics, never wrap it in quotes or code fences.`,
+      600
     );
+
+    // Themes get pasted in from other tools and carry template syntax like
+    // {{dayNumber}}. Nothing unresolved should ever reach a published post.
+    const clean = caption
+      .replace(/\{\{[^}]*\}\}/g, "")
+      .replace(/ {2,}/g, " ")
+      .trim();
 
     // Contact block is appended in code, not asked of the model, so it is never
     // paraphrased, truncated or hallucinated.
     return (
-      `${caption}\n\n` +
+      `${clean}\n\n` +
       `🏢 ${b.name}\n` +
       `🌐 ${b.website}\n` +
       `📱 ${b.mobile}\n` +
@@ -94,9 +108,16 @@ export const generateImage = internalAction({
         ? `Place the provided company logo prominently in the top-left corner, ` +
           `preserving its exact colours and shape. `
         : "") +
+      // The phone number is deliberately NOT rendered into the image: image
+      // models drop digits from long numbers (9880020224 came out as 988002024)
+      // and a wrong number on a live ad is worse than no number. It is appended
+      // exactly, in code, to every caption instead.
       `Render this text in the image with bold, clean, perfectly spelled typography: ` +
-      `"${b.name}" as the headline, and "${b.mobile} | ${b.website}" as a footer bar. ` +
-      `No other text anywhere in the image.`;
+      `"${b.name}" as the headline, and "${b.website}" as a footer. ` +
+      `The footer must sit on a flat horizontal bar across the bottom — perfectly ` +
+      `level, face-on, not skewed into perspective, and with clear margin so no ` +
+      `letter is cropped by the frame edge. ` +
+      `No other text anywhere in the image. Do not invent any phone number.`;
 
     let res: Response;
 
