@@ -233,6 +233,20 @@ export const addReelHook = mutation({
   }
 });
 
+export const addBatchReelHooks = mutation({
+  args: { hooks: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for (const hook of args.hooks) {
+      await ctx.db.insert("reelHooks", {
+        hook,
+        createdAt: now,
+      });
+    }
+  }
+});
+
+
 export const getReelHooks = query({
   args: {},
   handler: async (ctx) => {

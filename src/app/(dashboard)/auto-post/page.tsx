@@ -22,6 +22,7 @@ export default function AutoPostPage() {
   const addImage = useMutation("autoPost:addImage" as any);
   const removeImage = useMutation("autoPost:removeImage" as any);
   const addReelHook = useMutation("autoPost:addReelHook" as any);
+  const addBatchReelHooks = useMutation("autoPost:addBatchReelHooks" as any);
   const removeReelHook = useMutation("autoPost:removeReelHook" as any);
   const generateUploadUrl = useMutation("mutations:generateUploadUrl" as any);
   const triggerAutoPost = useAction("autoPost:triggerAutoPost" as any);
@@ -89,6 +90,26 @@ export default function AutoPostPage() {
       setNewReelHook("");
     } catch (e: any) {
       setError(e.message || "Failed to add reel hook");
+    } finally {
+      setIsAddingHook(false);
+    }
+  };
+
+  const handleLoadMarketingHooks = async () => {
+    setIsAddingHook(true);
+    try {
+      const hooks = [
+        "Part 1 — Stop Losing Customers to Outdated Design. Here is why your website needs a revamp today.",
+        "Part 2 — Why 95% of businesses fail to generate leads online (and how you can fix it).",
+        "Part 3 — The secret to a high-converting landing page that nobody tells you.",
+        "Part 4 — Is your website mobile-friendly? If not, you are losing 60% of your customers.",
+        "Part 5 — 3 Website Design Trends in 2026 that are guaranteed to boost your sales.",
+        "Part 6 — SEO isn't dead. Here is how to rank your new website on Google's first page.",
+        "Part 7 — Stop paying for ads if your website isn't optimized for conversions."
+      ];
+      await addBatchReelHooks({ hooks });
+    } catch (e: any) {
+      setError(e.message || "Failed to load marketing hooks");
     } finally {
       setIsAddingHook(false);
     }
@@ -459,7 +480,15 @@ export default function AutoPostPage() {
               disabled={isAddingHook || !newReelHook.trim()}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-xl transition-all disabled:opacity-50"
             >
-              {isAddingHook ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Hook"}
+              {isAddingHook && newReelHook.trim() ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Hook"}
+            </button>
+            <button
+              onClick={handleLoadMarketingHooks}
+              disabled={isAddingHook}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all disabled:opacity-50"
+              title="Load 7 pre-written high-converting marketing hooks"
+            >
+              Load 7-Day Marketing Hooks
             </button>
           </div>
 
