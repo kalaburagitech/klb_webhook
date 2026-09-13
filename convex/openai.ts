@@ -2,7 +2,7 @@ import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
 const CHAT_MODEL = "gpt-4o-mini";
-const IMAGE_MODEL = "gpt-image-1";
+const IMAGE_MODEL = "dall-e-3";
 
 function apiKey() {
   const key = process.env.OPENAI_API_KEY;
@@ -151,11 +151,11 @@ export const generateImage = internalAction({
       if (!logoRes.ok) throw new Error("Could not download the uploaded company logo");
 
       const form = new FormData();
-      form.append("model", IMAGE_MODEL);
+      form.append("model", "dall-e-2");
       form.append("prompt", prompt);
       form.append("size", "1024x1024");
-      form.append("output_format", "jpeg");
-      form.append("image[]", await logoRes.blob(), "logo.png");
+      form.append("response_format", "b64_json");
+      form.append("image", await logoRes.blob(), "logo.png");
 
       res = await fetch("https://api.openai.com/v1/images/edits", {
         method: "POST",
@@ -173,7 +173,7 @@ export const generateImage = internalAction({
           model: IMAGE_MODEL,
           prompt,
           size: "1024x1024",
-          output_format: "jpeg", // Instagram rejects PNG containers
+          response_format: "b64_json", // OpenAI returns PNG, format conversion must happen elsewhere if needed
           n: 1,
         }),
       });
