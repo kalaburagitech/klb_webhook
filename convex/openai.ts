@@ -154,7 +154,6 @@ export const generateImage = internalAction({
       form.append("model", "dall-e-2");
       form.append("prompt", prompt);
       form.append("size", "1024x1024");
-      form.append("response_format", "b64_json");
       form.append("image", await logoRes.blob(), "logo.png");
 
       res = await fetch("https://api.openai.com/v1/images/edits", {
@@ -173,7 +172,6 @@ export const generateImage = internalAction({
           model: IMAGE_MODEL,
           prompt,
           size: "1024x1024",
-          response_format: "b64_json", // OpenAI returns PNG, format conversion must happen elsewhere if needed
           n: 1,
         }),
       });
@@ -182,8 +180,22 @@ export const generateImage = internalAction({
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || "OpenAI image error");
 
-    const b64 = data.data?.[0]?.b64_json;
-    if (!b64) throw new Error("OpenAI returned no image data");
+    // By default OpenAI returns a URL if we don't specify response_format
+    let b64 = data.data?.[0]?.b64_json;
+    if (!b64) {
+      const url = data.data?.[0]?.url;
+      if (!url) throw new Error("OpenAI returned no image data or url");
+      const imgRes = await fetch(url);
+      if (!imgRes.ok) throw new Error("Failed to download generated image from URL");
+      const buffer = await imgRes.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      b64 = btoa(binary);
+    }
+    
     return b64;
   },
 });
