@@ -2,7 +2,7 @@ import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
 const CHAT_MODEL = "gpt-4o-mini";
-const IMAGE_MODEL = "dall-e-3";
+const IMAGE_MODEL = "gpt-image-1";
 
 function apiKey() {
   const key = process.env.OPENAI_API_KEY;
