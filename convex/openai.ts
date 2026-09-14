@@ -151,7 +151,7 @@ export const generateImage = internalAction({
       if (!logoRes.ok) throw new Error("Could not download the uploaded company logo");
 
       const form = new FormData();
-      form.append("model", "dall-e-2");
+      form.append("model", IMAGE_MODEL);
       form.append("prompt", prompt);
       form.append("size", "1024x1024");
       form.append("image", await logoRes.blob(), "logo.png");
