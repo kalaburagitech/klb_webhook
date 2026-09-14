@@ -232,8 +232,8 @@ export default function PostsPage() {
       {/* Create Post Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-gray-800">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-gray-800 flex-shrink-0">
               <h2 className="text-xl font-semibold text-white">{editingPostId ? "Edit Post" : "Create New Post"}</h2>
               <button onClick={() => { setIsModalOpen(false); setEditingPostId(null); setContent(""); setImageUrl(""); }} className="text-gray-400 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
@@ -300,22 +300,27 @@ export default function PostsPage() {
                       disabled={isUploading}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                     />
-                    <button type="button" disabled={isUploading} className="w-full h-full min-h-[56px] flex items-center justify-center px-6 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors disabled:opacity-50">
-                      {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><UploadCloud className="w-5 h-5 mr-2" /> Upload</>}
+                    <button 
+                      type="button"
+                      disabled={isUploading}
+                      className="flex h-full items-center px-4 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors disabled:opacity-50"
+                    >
+                      {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                      Upload
                     </button>
                   </div>
                 </div>
-
-                {imageUrl && (
-                  <div className="mt-4 rounded-xl overflow-hidden border border-gray-700/50 bg-gray-800 relative h-48">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                  </div>
-                )}
               </div>
+
+              {imageUrl && (
+                <div className="mt-3 relative rounded-xl overflow-hidden border border-gray-700/50 bg-gray-900/50 p-2 flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageUrl} alt="Preview" className="max-w-full max-h-64 object-contain rounded-lg" />
+                </div>
+              )}
             </div>
 
-            <div className="p-6 border-t border-gray-800 bg-gray-900/50 flex justify-end gap-3">
+            <div className="p-6 border-t border-gray-800 bg-gray-900/50 flex justify-end gap-3 flex-shrink-0">
               <button 
                 onClick={() => { setIsModalOpen(false); setEditingPostId(null); setContent(""); setImageUrl(""); }}
                 className="px-5 py-2.5 text-gray-300 hover:text-white font-medium transition-colors"
