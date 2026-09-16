@@ -19,12 +19,25 @@ const DEFAULT_CONFIG: any = {
 // Writes a caption + branded image and returns both. Shared by the manual
 // "Generate preview" button and the cron, so there is exactly one image path.
 async function generateBrandedPost(ctx: any, config: any) {
-  const caption: string = await ctx.runAction(internal.openai.generateCaption, {
+  // One concrete subject drives the caption and the poster together, so both
+  // halves of the post are about the same buildable thing.
+  const { recent, cursor } = await ctx.runQuery(internal.autoPost.topicHistory, {});
+  const topic = await ctx.runAction(internal.openai.pickTopic, {
+    recent,
+    cursor,
     config,
   });
 
+  const caption: string = await ctx.runAction(internal.openai.generateCaption, {
+    config,
+    topic,
+  });
+
+  // The topic, never the caption. Feeding the finished caption in handed the
+  // image model the emojis, hashtags and contact block as its subject, which is
+  // what produced the generic slop.
   const b64: string = await ctx.runAction(internal.openai.generateImage, {
-    theme: caption,
+    topic,
     config,
   });
 
@@ -35,7 +48,7 @@ async function generateBrandedPost(ctx: any, config: any) {
   const url = await ctx.storage.getUrl(storageId);
   if (!url) throw new Error("Could not resolve the generated image URL");
 
-  return { caption, storageId, url };
+  return { caption, storageId, url, topic: topic.topic };
 }
 
 // ---------- Public queries / mutations (dashboard) ----------
@@ -74,8 +87,8 @@ export const generateAndSaveImage = action({
       config.reelHook = state.nextHook.hook;
     }
 
-    const { caption, storageId } = await generateBrandedPost(ctx, config);
-    await ctx.runMutation(api.autoPost.addImage, { storageId, caption });
+    const { caption, storageId, topic } = await generateBrandedPost(ctx, config);
+    await ctx.runMutation(api.autoPost.addImage, { storageId, caption, topic });
 
     // The hook is consumed here, where it is actually baked into the caption and
     // the image. Consuming it at publish time instead lets generation re-read the
@@ -153,6 +166,7 @@ export const addImage = mutation({
   args: { 
     storageId: v.id("_storage"),
     caption: v.optional(v.string()),
+    topic: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const url = await ctx.storage.getUrl(args.storageId);
@@ -161,8 +175,12 @@ export const addImage = mutation({
       storageId: args.storageId,
       url,
       caption: args.caption,
+      topic: args.topic,
       createdAt: Date.now(),
     });
+    // Only generated posts carry a topic; a hand-uploaded image must not
+    // consume a segment.
+    if (args.topic) await advanceSegment(ctx);
   },
 });
 
@@ -179,6 +197,46 @@ export const removeImage = mutation({
 
 // ---------- Internal helpers used by the cron action ----------
 
+// Everything the topic picker needs to avoid repeating itself. Pending images
+// count alongside published posts — generation runs twice a day but publishing
+// lags it, so reading only `posts` would let two runs pick the same subject.
+export const topicHistory = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const config = await ctx.db.query("autoPostConfig").first();
+    const pending = await ctx.db.query("autoPostImages").order("desc").take(40);
+    const published = await ctx.db.query("posts").order("desc").take(40);
+
+    const recent = [...pending.map((i) => i.topic), ...published.map((p) => p.title)]
+      .filter((t): t is string => !!t && t.trim().length > 0)
+      .map((t) => t.trim());
+
+    return {
+      recent: [...new Set(recent)].slice(0, 40),
+      cursor: config?.rotationIndex ?? 0,
+    };
+  },
+});
+
+// Walks the audience segments forward. Called once per generated post so student
+// and client subjects alternate instead of clustering.
+async function advanceSegment(ctx: any) {
+  const config = await ctx.db.query("autoPostConfig").first();
+  if (config) {
+    await ctx.db.patch(config._id, {
+      rotationIndex: (config.rotationIndex ?? 0) + 1,
+      updatedAt: Date.now(),
+    });
+  }
+}
+
+export const bumpSegment = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await advanceSegment(ctx);
+  },
+});
+
 export const getState = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -194,14 +252,15 @@ export const finalizeSuccess = internalMutation({
     caption: v.string(),
     mediaUrl: v.string(),
     platforms: v.array(v.string()),
-    nextRotation: v.number(),
     slot: v.string(),
+    topic: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
 
     // Record it in the Posts library so it shows up in the dashboard.
     await ctx.db.insert("posts", {
+      title: args.topic,
       content: args.caption,
       mediaUrl: args.mediaUrl,
       platforms: args.platforms,
@@ -213,7 +272,6 @@ export const finalizeSuccess = internalMutation({
     const config = await ctx.db.query("autoPostConfig").first();
     if (config) {
       await ctx.db.patch(config._id, {
-        rotationIndex: args.nextRotation,
         lastRunSlot: args.slot,
         lastRunAt: now,
         lastError: undefined,
@@ -301,6 +359,7 @@ export const runAutoPost = internalAction({
       let caption = "";
       let mediaUrl = "";
       let usedImageId: any = null;
+      let topic: string | undefined;
       // Only true when this run wrote the caption itself. A queued image already
       // consumed its hook at generation time and must not consume a second one.
       let consumedHook = false;
@@ -320,12 +379,15 @@ export const runAutoPost = internalAction({
         const generated = await generateBrandedPost(ctx, config);
         caption = generated.caption;
         mediaUrl = generated.url;
+        topic = generated.topic;
+        await ctx.runMutation(internal.autoPost.bumpSegment, {});
         consumedHook = true;
       } else {
         // Use the first image in the queue
         const image = images[0];
         mediaUrl = image.url;
         usedImageId = image._id;
+        topic = image.topic;
         
         if (image.caption) {
           caption = image.caption;
@@ -362,8 +424,8 @@ export const runAutoPost = internalAction({
         caption,
         mediaUrl: mediaUrl,
         platforms: config.platforms,
-        nextRotation: config.rotationIndex, // No longer used for queue, but kept for schema compatibility
         slot: args.slot,
+        topic,
       });
 
       if (usedImageId) {

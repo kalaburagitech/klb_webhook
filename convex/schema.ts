@@ -144,6 +144,9 @@ export default defineSchema({
     storageId: v.id("_storage"),
     url: v.string(),
     caption: v.optional(v.string()),
+    // What this post is about. Read back as the ban list for the topic picker,
+    // so a queued-but-unpublished subject is never picked twice.
+    topic: v.optional(v.string()),
     createdAt: v.number(),
   }),
 
